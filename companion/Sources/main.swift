@@ -31,7 +31,7 @@ import Darwin
 // MARK: - Configuration
 // ============================================================
 
-let kAppVersion = "1.30.0-beta.3"
+let kAppVersion = "1.30.0"
 let kSerialBaudRate: speed_t = 115200
 let kSerialScanInterval: TimeInterval = 3
 /// Legacy-Suite aus v1.x (<= 1.11.1). Wird ab v1.12.0 einmalig migriert und dann
@@ -83,6 +83,16 @@ let kFirmwareChipESP32S3 = FirmwareChip(esptoolName: "esp32s3", imageChipId: 9, 
 func firmwareChip(for variant: String) -> FirmwareChip {
     variant == kDisplayVariantST7701 ? kFirmwareChipESP32S3 : kFirmwareChipESP32
 }
+/// Schreibfortschritt aus einer esptool-Zeile. esptool 4 schreibt
+/// `Writing at 0x00010000... (12 %)`, esptool 5 ohne Terminal
+/// `Writing at 0x00010000 [===>   ]  12.3% 150.0kB/1.2MB [00:02]`.
+func esptoolWritePercent(_ line: String) -> Int? {
+    guard line.lowercased().contains("writing at"),
+          let range = line.range(of: #"\d+(\.\d+)?(?=\s*%)"#, options: .regularExpression),
+          let value = Double(line[range]) else { return nil }
+    return min(100, Int(value))
+}
+
 let kFirmwareCheckInterval: TimeInterval = 6 * 3600
 let kFlashBaudRate = 460800
 let kAppAssetName = "AIMonitor.zip"
@@ -1553,6 +1563,7 @@ class FirmwareManager {
             process.standardError = errorPipe
 
             var outputText = ""
+            var lineBuffer = ""
             outputPipe.fileHandleForReading.readabilityHandler = { handle in
                 let data = handle.availableData
                 guard let str = String(data: data, encoding: .utf8), !str.isEmpty else { return }
@@ -1574,13 +1585,13 @@ class FirmwareManager {
                         self.setPhase(.writing, percent: 0)
                     }
                 }
-                if let range = str.range(of: #"\((\d+)\s*%\)"#, options: .regularExpression) {
-                    let percentStr = str[range].replacingOccurrences(of: "(", with: "")
-                        .replacingOccurrences(of: "%)", with: "")
-                        .trimmingCharacters(in: .whitespaces)
-                    if let p = Int(percentStr) {
-                        self.setPhase(.writing, percent: p)
-                    }
+                // Prozentwert nur aus vollständigen Zeilen lesen: ein Lesevorgang
+                // kann mitten in einer Zeile enden.
+                lineBuffer += str
+                let lines = lineBuffer.components(separatedBy: CharacterSet(charactersIn: "\r\n"))
+                lineBuffer = lines.last ?? ""
+                if let p = lines.dropLast().compactMap(esptoolWritePercent).last {
+                    self.setPhase(.writing, percent: p)
                 }
                 if lower.contains("verifying") || lower.contains("hash of data verified") {
                     self.setPhase(.verifying)

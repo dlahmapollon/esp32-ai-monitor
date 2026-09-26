@@ -147,6 +147,9 @@ a.tag:hover { background: white; color: var(--primary); }
 .board-card { padding: 26px; display: flex; flex-direction: column; background: #e8ebf0; border-radius: 14px; min-width: 0; }
 .hardware-photo { margin: 0; height: 270px; overflow: hidden; border-radius: 8px; }
 .hardware-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 48%; }
+.board-s3 { margin-top: 24px; display: grid; grid-template-columns: 1fr 1.1fr; gap: 26px; align-items: center; }
+.board-s3 .hardware-photo { height: 380px; }
+.board-s3 .hardware-photo img { object-position: center 62%; }
 .board-copy { margin-top: 26px; }
 .board-copy .eyebrow { margin-bottom: 10px; }
 .board-copy h3 { margin: 0; font-size: var(--fs-xl); line-height: 1.2; font-weight: 600; letter-spacing: -.5px; }
@@ -226,7 +229,7 @@ a[target="_blank"]:not(.button):not(.tag):not(.case-link):not(.brand)::after { c
   .provider-band > a { margin: 0; width: 100%; justify-content: center; min-height: 36px; }
   .section { padding-block: 48px; }
   .section-header { margin-bottom: 26px; }
-  .download-list, .hardware-grid, .split, .app-gallery, .view-grid { grid-template-columns: 1fr; }
+  .download-list, .hardware-grid, .split, .app-gallery, .view-grid, .board-s3 { grid-template-columns: 1fr; }
   .download-card { padding: 24px; }
   .app-shot-frame { padding: 6px; }
   .app-shot-frame.compact { padding: 24px 12px; }
