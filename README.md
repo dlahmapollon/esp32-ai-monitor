@@ -1,15 +1,15 @@
 # AI Monitor
 
-A macOS or Windows companion app plus an ESP32 desk display for keeping AI usage limits visible while you work. It reads Claude, ChatGPT, Antigravity, Gemini, Copilot, or Cursor usage through the local CodexBar CLI, then streams the current limits to a small USB-connected CYD display.
+A macOS or Windows companion app plus an ESP32 desk display for keeping AI usage limits visible while you work. It reads Claude, ChatGPT, Antigravity, Gemini, Copilot, or Cursor usage through the local CodexBar CLI, then streams the current limits to a small USB-connected ESP32 display: the 2.8" Cheap Yellow Display (CYD) or the square 4" Guition ESP32-S3-4848S040.
 
 Usage data travels only over USB: the ESP32 needs no Wi-Fi, never sees cloud credentials, and there is no browser tab to keep open.
 
 ## How It Works
 
-The **AI Monitor** app on your Mac or Windows PC periodically asks the locally installed CodexBar CLI for the selected provider, applies your display settings, and sends a compact JSON frame over USB serial to the ESP32. The ESP32 renders the dashboard on the 2.8" color display.
+The **AI Monitor** app on your Mac or Windows PC periodically asks the locally installed CodexBar CLI for the selected provider, applies your display settings, and sends a compact JSON frame over USB serial to the ESP32. The ESP32 renders the dashboard on its display.
 
 ```text
-AI providers -> CodexBar CLI -> AI Monitor app (macOS / Windows) -> USB serial -> ESP32 CYD display
+AI providers -> CodexBar CLI -> AI Monitor app (macOS / Windows) -> USB serial -> ESP32 display
 ```
 
 The Mac app can also flash firmware, check GitHub Releases for app and firmware updates, and remember per-device display settings.
@@ -17,6 +17,9 @@ The Mac app can also flash firmware, check GitHub Releases for app and firmware 
 ## Features
 
 - Provider views for Claude, ChatGPT, Antigravity, Gemini CLI, GitHub Copilot, and Cursor
+- Up to eight display windows, each showing a provider or a clock; they rotate after a set interval or stay put until you switch (firmware 2.19.0+)
+- Touch navigation: tap the left or right half of the display to switch windows, long-press to open the on-device settings
+- Standby clock on the display while the app is not running
 - Session, weekly, and provider-specific usage rows where available (including Claude Fable)
 - Centered circular ChatGPT display when only one limit is available, in portrait and landscape
 - Antigravity model rows for Claude, Gemini Pro, and Gemini Flash; Gemini CLI rows for Pro, Flash, and Flash Lite; Cursor rows for plan, auto, and API usage
@@ -27,8 +30,8 @@ The Mac app can also flash firmware, check GitHub Releases for app and firmware 
 - ChatGPT/Codex header badges for workspace extra credits and reset credits (see below)
 - Automatic USB serial detection and instant resend on connect
 - Per-device settings for orientation, theme, language, brightness, timezone, and board variant
-- Portrait plus left/right landscape layouts
-- Firmware flashing for ILI9341 and ST7789 CYD variants
+- Portrait plus left/right landscape layouts on the CYD; on the square S3 board the view follows the side the USB cable points to
+- Firmware flashing for the ILI9341 and ST7789 CYD variants and the ESP32-S3-4848S040
 - Optional menu bar quick menu for provider switching
 - Optional Wi-Fi on the display, used only to keep the standby clock accurate via NTP while the app is not connected
 
@@ -43,7 +46,7 @@ Without these badges the account reports neither. In portrait the header is narr
 
 ## Quick Start
 
-1. **Buy** an [ESP32-2432S028 / ESP32-2432S028R board](https://de.aliexpress.com/item/1005007731775734.html), also known as a Cheap Yellow Display.
+1. **Buy** an [ESP32-2432S028 / ESP32-2432S028R board](https://de.aliexpress.com/item/1005007731775734.html), also known as a Cheap Yellow Display, or a [Guition ESP32-S3-4848S040](https://de.aliexpress.com/item/1005008214679682.html).
 2. **Install [CodexBar](https://codexbar.app/)** so its local CLI is available.
 3. **Download** the AI Monitor app from [GitHub Releases](https://github.com/tobymarks/esp32-ai-monitor/releases): the Mac app (`app-v*`), or the Windows app (`win-v*`).
 4. **Plug** the ESP32 into your computer via a USB data cable.
@@ -58,7 +61,7 @@ A step-by-step build guide with photos is on [Hackster.io](https://www.hackster.
 - Windows only: a driver for the CYD's CH340 USB-serial chip if Windows does not install it automatically
 - Windows only: the installer is not code-signed yet, so Windows SmartScreen warns on first launch. Choose "More info", then "Run anyway"
 - At least one of Claude, ChatGPT, Antigravity, Gemini, Copilot, or Cursor set up in CodexBar
-- ESP32-2432S028 / ESP32-2432S028R CYD board
+- ESP32-2432S028 / ESP32-2432S028R CYD board, or a Guition ESP32-S3-4848S040
 - USB data cable, not a charge-only cable
 - Optional: PlatformIO if you want to build or flash the firmware manually
 
@@ -77,7 +80,7 @@ After CodexBar is running, enable the providers you want there. AI Monitor will 
 
 ## Hardware
 
-Supported board family:
+### Cheap Yellow Display (CYD)
 
 - **ESP32-2432S028R / R board:** ILI9341 display controller
 - **ESP32-2432S028 / Hybrid board:** ST7789 display controller
@@ -91,12 +94,21 @@ Common hardware:
 
 If the display stays white or shows noise after flashing, flash the other panel variant from the AI Monitor app.
 
+### Guition ESP32-S3-4848S040
+
+- **Display:** [4" 480x480](https://de.aliexpress.com/item/1005008214679682.html), ST7701S over 16-bit RGB
+- **Touch:** GT911
+- **MCU:** ESP32-S3 with octal PSRAM and 16 MB flash
+
+The square layout shows the weekly limit as a large ring with countdown and reset time, and the session as a bar. The board keeps no settings of its own: writing to flash while the panel is running disturbs the RGB output, so the app sends the display settings every time it connects. The apps pick the chip automatically when flashing.
+
 ## Enclosures
 
-3D-printable cases for the CYD on MakerWorld:
+3D-printable cases on MakerWorld:
 
-- [Landscape: Weather Station Pro for ESP32-2432S028 CYD](https://makerworld.com/de/models/2583102-weather-station-pro-anemometer-esp32-2432s028-cyd#profileId-2849155)
-- [Portrait: Aura Smart Weather Forecast Display](https://makerworld.com/de/models/1382304-aura-smart-weather-forecast-display?from=search#profileId-1430951)
+- [CYD landscape: Weather Station Pro for ESP32-2432S028 CYD](https://makerworld.com/de/models/2583102-weather-station-pro-anemometer-esp32-2432s028-cyd#profileId-2849155)
+- [CYD portrait: Aura Smart Weather Forecast Display](https://makerworld.com/de/models/1382304-aura-smart-weather-forecast-display?from=search#profileId-1430951)
+- [ESP32-S3-4848S040: Case Stand V3](https://makerworld.com/de/models/2581572-guition-esp32s3-4848s040-case-stand-v3#profileId-3013482)
 
 ## Build from Source
 
@@ -113,6 +125,7 @@ Firmware targets:
 
 - `esp32dev`: ILI9341 / R-board build
 - `esp32dev-st7789`: ST7789 / Hybrid-board build
+- `esp32s3-4848s040`: Guition ESP32-S3-4848S040 build (Arduino core 3.x via pioarduino, the CYD builds stay on espressif32 6.13.0)
 
 ### Installer Binaries
 
@@ -143,11 +156,11 @@ The Windows app lives in `companion-windows/` and is built with Tauri 2 (Rust ba
 
 ## Release Flow
 
-- Firmware releases use tags like `v2.11.4`.
-- Mac app releases use tags like `app-v1.17.1`.
+- Firmware releases use tags like `v2.11.4`; betas use `fw-beta-v*`.
+- Mac app releases use tags like `app-v1.17.1`; betas use `app-beta-v*`.
 - Windows app releases use tags like `win-v1.0.0`; betas use `win-beta-v*` and are marked as prereleases.
 - Pushes to `main` that touch firmware or installer files build and deploy the GitHub Pages installer.
-- Firmware tags build release assets for both ILI9341 and ST7789 variants.
+- Firmware tags build release assets for the ILI9341, ST7789 and ST7701 (ESP32-S3-4848S040) variants.
 - App tags build `AIMonitor.zip` and `AIMonitor.dmg` via the macOS workflow.
 - Windows tags build `AIMonitor-Setup.exe` plus a `.sha256` sidecar via the Windows workflow (Tauri NSIS bundler, silent install smoke test).
 - App release assets are signed with a Developer ID, notarized by Apple and stapled,
@@ -158,7 +171,7 @@ The Windows app lives in `companion-windows/` and is built with Tauri 2 (Rust ba
 
 | Component | Stack |
 |-----------|-------|
-| ESP32 Firmware | PlatformIO, Arduino-ESP32, TFT_eSPI, LVGL v9, ArduinoJson |
+| ESP32 Firmware | PlatformIO, Arduino-ESP32, LVGL v9, ArduinoJson; TFT_eSPI on the CYD, esp_lcd plus GFX Library for Arduino on the S3 |
 | Mac App | Swift, AppKit, POSIX serial, GitHub Releases API |
 | Windows App | Tauri 2, Rust (serialport, espflash), React, GitHub Releases API |
 | Data Source | Local CodexBar CLI (macOS), Win-CodexBar CLI (Windows) |

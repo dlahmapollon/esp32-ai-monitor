@@ -202,7 +202,7 @@
       <div class="section-header">
         <p class="eyebrow" data-i18n="hw.eyebrow">Hardware</p>
         <h2 data-i18n="hw.title">Kleine Hardware. Alles im Blick.</h2>
-        <p data-i18n="hw.sub">Du brauchst ein ESP32-Display aus der CYD-Serie und ein USB-Datenkabel. Ein passendes Gehäuse kannst du dir selbst drucken.</p>
+        <p data-i18n="hw.sub">Du brauchst ein ESP32-Display aus der CYD-Serie oder das quadratische Guition ESP32-S3-4848S040 und ein USB-Datenkabel. Ein passendes Gehäuse kannst du dir selbst drucken.</p>
       </div>
 
       <div class="hardware-grid">
@@ -225,7 +225,8 @@
           <article class="plain-card">
             <h3 data-i18n="hw.need.h">Das brauchst du</h3>
             <ul>
-              <li><a href="https://de.aliexpress.com/item/1005007731775734.html" target="_blank" rel="noopener" data-i18n="hw.need.1">ESP32-Display auf AliExpress ansehen</a></li>
+              <li><a href="https://de.aliexpress.com/item/1005007731775734.html" target="_blank" rel="noopener" data-i18n="hw.need.1">Cheap Yellow Display (2,8 Zoll) auf AliExpress ansehen</a></li>
+              <li><a href="https://de.aliexpress.com/item/1005008214679682.html" target="_blank" rel="noopener" data-i18n="hw.need.1b">Oder das quadratische ESP32-S3-4848S040 (4 Zoll) auf AliExpress ansehen</a></li>
               <li data-i18n="hw.need.2">USB-Kabel mit Datenübertragung</li>
               <li data-i18n="hw.need.3">Mac mit macOS 14 oder neuer — Apple Silicon oder Intel — oder Windows 10/11, 64 Bit</li>
               <li data-i18n="hw.need.4">CodexBar (Mac) oder Win-CodexBar (Windows) mit mindestens einem eingerichteten KI-Dienst</li>
@@ -246,10 +247,29 @@
                 <span data-i18n="hw.case.portrait">Hochformat · 3D-Druckdatei</span>
                 <strong>Aura Smart Display <span aria-hidden="true">↗</span></strong>
               </a>
+              <a class="case-link" href="https://makerworld.com/de/models/2581572-guition-esp32s3-4848s040-case-stand-v3#profileId-3013482" target="_blank" rel="noopener">
+                <span data-i18n="hw.case.s3">ESP32-S3-4848S040 · 3D-Druckdatei</span>
+                <strong>Case Stand V3 <span aria-hidden="true">↗</span></strong>
+              </a>
             </div>
           </article>
         </div>
       </div>
+
+      <article class="board-card board-s3">
+        <figure class="hardware-photo">
+          <img src="assets/display-s3-chatgpt.jpg" alt="Quadratisches Display ESP32-S3-4848S040 auf dem Tisch mit dem ChatGPT-Wochenlimit als Ring" data-i18n-alt="hw.s3.img.alt" width="1200" height="1600" loading="lazy" decoding="async">
+        </figure>
+        <div class="board-copy">
+          <p class="eyebrow" data-i18n="hw.s3.label">Das große Display</p><h3>4 Zoll.<br>Quadratisch.</h3><p class="board-model">Guition ESP32-S3-4848S040</p>
+          <p data-i18n="hw.s3.p">Mehr Platz für dein Wochenlimit: ein großer Ring mit Countdown und Reset-Zeitpunkt, darunter die Sitzung als Balken. Die Anzeige dreht sich passend dazu, auf welcher Seite das USB-Kabel steckt. Die App erkennt das Board und installiert die passende Firmware.</p>
+          <div class="tag-list">
+            <span class="tag">ESP32-S3</span>
+            <span class="tag">ST7701S</span>
+            <span class="tag">480&nbsp;×&nbsp;480&nbsp;px</span>
+          </div>
+        </div>
+      </article>
 
       <div class="view-grid" aria-label="Darstellungen auf dem Display" data-i18n-aria="hw.views.label">
         <figure class="view-card">
@@ -293,8 +313,12 @@
           <p data-i18n="help.a3">Prüfe, ob CodexBar für den gewünschten KI-Dienst aktuelle Daten liefert und die lokale CLI verfügbar ist. Wähle anschließend in AI Monitor den gewünschten KI-Dienst als Datenquelle aus.</p>
         </details>
         <details>
+          <summary data-i18n="help.q7">Kann das Display mehrere KI-Dienste nacheinander zeigen?</summary>
+          <p data-i18n="help.a7">Ja, ab Firmware 2.19.0. In der AI Monitor App legst du unter Display bis zu acht Fenster an und belegst jedes mit einem KI-Dienst oder der Uhr. Die Fenster wechseln automatisch nach einer einstellbaren Zeit, oder du wechselst selbst: links auf das Display tippen für zurück, rechts für weiter. Ist die App beendet, zeigt das Display eine Uhr.</p>
+        </details>
+        <details>
           <summary data-i18n="help.q4">Kann ich die Firmware auch manuell herunterladen?</summary>
-          <p data-i18n-html="help.a4">Ja. Die Firmware für beide Display-Varianten findest du unter <a href="https://github.com/tobymarks/esp32-ai-monitor/releases/tag/v2.19.0" target="_blank" rel="noopener" data-v="fw-link">v2.19.0</a> auf GitHub. Am einfachsten installierst du sie direkt über die AI Monitor App.</p>
+          <p data-i18n-html="help.a4">Ja. Die Firmware für alle Display-Varianten findest du unter <a href="https://github.com/tobymarks/esp32-ai-monitor/releases/tag/v2.19.0" target="_blank" rel="noopener" data-v="fw-link">v2.19.0</a> auf GitHub. Am einfachsten installierst du sie direkt über die AI Monitor App.</p>
         </details>
         <details>
           <summary data-i18n="help.q6">Was bedeuten „+Cr“ und das Pfeil-Symbol neben „CHATGPT“?</summary>
@@ -401,15 +425,19 @@
 
     "hw.eyebrow": "Hardware",
     "hw.title": "Small hardware. Clear overview.",
-    "hw.sub": "All you need is a CYD-series ESP32 display and a USB data cable. You can 3D-print a case to make it your own.",
+    "hw.sub": "All you need is a CYD-series ESP32 display or the square Guition ESP32-S3-4848S040, plus a USB data cable. You can 3D-print a case to make it your own.",
     "hw.img.alt": "AI Monitor display in a 3D-printed case, seen from the side on the monitor stand",
     "hw.board.p": "A 2.8-inch colour touchscreen with ESP32. A single USB cable carries both power and data.",
     "hw.need.h": "What you need",
-    "hw.need.1": "View the ESP32 display on AliExpress",
+    "hw.need.1": "View the Cheap Yellow Display (2.8 inch) on AliExpress",
+    "hw.need.1b": "Or view the square ESP32-S3-4848S040 (4 inch) on AliExpress",
     "hw.need.2": "A USB data cable, not a charge-only one",
     "hw.need.3": "A Mac running macOS 14 or newer — Apple Silicon or Intel — or Windows 10/11, 64-bit",
     "hw.need.4": "CodexBar (Mac) or Win-CodexBar (Windows) with at least one provider set up",
     "hw.need.guide": "Step-by-step build guide on Hackster.io",
+    "hw.s3.label": "The large display",
+    "hw.s3.p": "More room for your weekly limit: a large ring with countdown and reset time, with the session as a bar below. The view turns to match the side the USB cable plugs into. The app recognises the board and installs the matching firmware.",
+    "hw.s3.img.alt": "Square ESP32-S3-4848S040 display on a table, showing the ChatGPT weekly limit as a ring",
     "hw.case.h": "A case for your desk",
     "hw.case.img.alt": "AI Monitor display in a portrait case on the desk, showing Claude limits as bars",
     "hw.views.label": "Views on the display",
@@ -421,6 +449,7 @@
     "hw.view.bars.p": "Several limits stacked – session, week and model at a glance.",
     "hw.case.landscape": "Landscape · 3D print file",
     "hw.case.portrait": "Portrait · 3D print file",
+    "hw.case.s3": "ESP32-S3-4848S040 · 3D print file",
 
     "help.eyebrow": "Good to know",
     "help.title": "A question or two?",
@@ -431,6 +460,8 @@
     "help.a2": "Then the wrong firmware variant was almost certainly flashed. Switch between ILI9341 and ST7789 when flashing in the app.",
     "help.q3": "No usage limits are displayed",
     "help.a3": "Check that CodexBar provides current data for your chosen AI service and that its local CLI is available. Then select the AI service you want as the data source in AI Monitor.",
+    "help.q7": "Can the display show several AI services in turn?",
+    "help.a7": "Yes, from firmware 2.19.0. In the AI Monitor app, set up to eight windows under Display and give each an AI service or the clock. The windows rotate after a set time, or you switch yourself: tap the left side of the display to go back, the right side to go forward. When the app is closed, the display shows a clock.",
     "help.q4": "Can I download the firmware manually?",
     "help.a4": "The current firmware binaries live in release <a href=\"https://github.com/tobymarks/esp32-ai-monitor/releases/tag/__FW__\" target=\"_blank\" rel=\"noopener\" data-v=\"fw-link\">__FW__</a>. The normal route is still flashing from the AI Monitor app.",
     "help.q6": "What do “+Cr” and the arrow icon next to “CHATGPT” mean?",
