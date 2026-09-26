@@ -14,6 +14,20 @@ AI providers -> CodexBar CLI -> AI Monitor app (macOS / Windows) -> USB serial -
 
 The Mac app can also flash firmware, check GitHub Releases for app and firmware updates, and remember per-device display settings.
 
+### Display plugins (in development)
+
+The companion apps can install declarative `.aimplugin` files from disk or an
+HTTPS release URL. Each installed plugin appears as a placeable window in the
+display manager. Plugins can define separate portrait, landscape, and square
+layouts; the built-in AI dashboards remain the main purpose of the device.
+The desktop fetches plugin data and
+sends bounded drawing scenes to firmware with `sceneProtocol: 1`. Install that
+firmware once; installing another compatible plugin does not require flashing
+again. Plugins in this format contain no executable code, and the app shows
+their data origin and unsigned status before installation. See the
+[plugin architecture](docs/display-plugins.md), [authoring guide](docs/display-plugin-authoring.md),
+and [acceptance test](docs/display-plugin-test.md).
+
 ## Features
 
 - Provider views for Claude, ChatGPT, Antigravity, Gemini CLI, GitHub Copilot, and Cursor
@@ -92,7 +106,7 @@ Common hardware:
 - **MCU:** ESP32-WROOM-32
 - **Backlight:** GPIO 21
 
-If the display stays white or shows noise after flashing, flash the other panel variant from the AI Monitor app.
+If a CYD stays white or shows noise after flashing, flash the other CYD panel variant from the AI Monitor app. Select the ST7701 image only for the Guition S3 board.
 
 ### Guition ESP32-S3-4848S040
 
@@ -174,7 +188,7 @@ The Windows app lives in `companion-windows/` and is built with Tauri 2 (Rust ba
 | ESP32 Firmware | PlatformIO, Arduino-ESP32, LVGL v9, ArduinoJson; TFT_eSPI on the CYD, esp_lcd plus GFX Library for Arduino on the S3 |
 | Mac App | Swift, AppKit, POSIX serial, GitHub Releases API |
 | Windows App | Tauri 2, Rust (serialport, espflash), React, GitHub Releases API |
-| Data Source | Local CodexBar CLI (macOS), Win-CodexBar CLI (Windows) |
+| Data Source | Local CodexBar CLI (macOS), Win-CodexBar CLI (Windows); explicit HTTPS JSON sources for display plugins |
 | Website | GitHub Pages |
 
 ## License
