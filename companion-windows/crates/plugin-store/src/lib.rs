@@ -1,7 +1,8 @@
 //! Portable store for declarative display plugins. Validation is in the core
 //! crate; this module owns persistence, bounded HTTPS fetches, and state.
 
-use aimonitor_core::plugin::{status_scene, Manifest, SceneLayout, Setting};
+use aimonitor_core::plugin::{status_scene, status_text, Manifest, SceneLayout, Setting};
+use aimonitor_core::protocol::Language;
 use aimonitor_core::plugin_package::{parse_package, MAX_PACKAGE_BYTES};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -92,15 +93,18 @@ impl PluginRecord {
         }
     }
 
-    pub fn scene(&self, layout: SceneLayout, locale: &str) -> Value {
+    pub fn scene(&self, layout: SceneLayout, language: Language) -> Value {
+        let title = self.manifest.localized(language.wire(), &self.manifest.view_label);
         if let Some(error) = &self.last_error {
-            return status_scene(
-                &self.manifest.view_label,
-                &format!("Data unavailable: {error}"),
-            );
+            // Auf 60 Zeichen kürzen, sonst ersetzt status_scene die Meldung.
+            let message: String = format!("{}: {error}", status_text("unavailable", language))
+                .chars()
+                .take(60)
+                .collect();
+            return status_scene(title, &message);
         }
         let Some(data) = &self.data else {
-            return status_scene(&self.manifest.view_label, "Loading data...");
+            return status_scene(title, status_text("loading", language));
         };
         let stale_after =
             chrono::Duration::seconds(self.manifest.source.interval_seconds as i64 * 3);
@@ -108,12 +112,12 @@ impl PluginRecord {
             .fetched_at
             .is_none_or(|time| Utc::now() - time > stale_after)
         {
-            return status_scene(&self.manifest.view_label, "Data stale - waiting for update");
+            return status_scene(title, status_text("stale", language));
         }
         self.manifest
-            .scene_localized(layout, data, &self.settings, locale)
+            .scene_localized(layout, data, &self.settings, language.wire())
             .unwrap_or_else(|_| {
-                status_scene(&self.manifest.view_label, "Cannot render plugin data")
+                status_scene(title, status_text("render", language))
             })
     }
 }
@@ -576,7 +580,7 @@ mod tests {
         let due = store.due_fetches(&assigned);
         assert_eq!(due.len(), 1);
         store.apply_fetch(id, &due[0].1, &updated, Ok(response));
-        let scene = store.records[id].scene(SceneLayout::Portrait, "en");
+        let scene = store.records[id].scene(SceneLayout::Portrait, Language::En);
         assert!(scene["nodes"]
             .as_array()
             .unwrap()
@@ -584,12 +588,18 @@ mod tests {
             .any(|node| node["text"] == "Updated"));
 
         store.apply_fetch(id, &due[0].1, &updated, Err("offline".into()));
-        let unavailable = store.records[id].scene(SceneLayout::Portrait, "en");
+        let unavailable = store.records[id].scene(SceneLayout::Portrait, Language::En);
         assert!(unavailable["nodes"]
             .as_array()
             .unwrap()
             .iter()
             .any(|node| node["text"] == "Data unavailable: offline"));
+        let unavailable_de = store.records[id].scene(SceneLayout::Portrait, Language::De);
+        assert!(unavailable_de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["text"] == "Daten nicht abrufbar: offline"));
 
         store.remove(id).unwrap();
         assert!(store.due_fetches(&assigned).is_empty());

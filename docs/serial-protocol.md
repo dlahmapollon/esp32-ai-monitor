@@ -433,6 +433,7 @@ Der Vergleich ist case-insensitiv, der String wird auf 15 Zeichen gekürzt `(pro
 |---|---|---|---|---|
 | `rows` | Array | ja (darf leer sein) | Anzeigezeilen, maximal 3 werden gelesen | `(main.swift:3004)`, `(serial_receiver.cpp:513-527)` |
 | `loginMethod` | String | nein | Klartext-Label des Kontos, z. B. `"Claude Max"`. Das Gerät loggt es nur | `(main.swift:3005)`, `(CodexBarSource.swift:86-101)`, `(serial_receiver.cpp:590-593)` |
+| `percentMode` | String | nein | `"used"` oder `"remaining"`: ob `usedPercent` die verbrauchten oder die verbleibenden Prozent meint. Fehlt das Feld, gilt `"used"`. Gesendet ab Mac-App 1.31.0 bzw. Windows-App 1.2.4. Ab Firmware 2.20.0 richtet das quadratische Panel danach die Tempo-Marke und die Warnfarbe aus | `(main.swift, buildUsageEnvelope)`, `(envelope.rs, usage_envelope)`, `(serial_receiver.cpp)` |
 | `primary` | Objekt | nein | Fenster 1 (Session), nur wenn die Quelle es liefert | `(main.swift:3007-3013)` |
 | `secondary` | Objekt | nein | Fenster 2 | `(main.swift:3014-3020)` |
 | `tertiary` | Objekt | nein | Fenster 3 | `(main.swift:3021-3027)` |
@@ -476,7 +477,7 @@ Zeilen-Objekte in `rows`:
 | `title` | String | nein | Zeilentitel; leer oder fehlend ergibt den Default-Titel des Providers. Puffer 20 Bytes, also maximal 19 Zeichen | `(serial_receiver.cpp:112-114)`, `(api_common.h:57)` |
 | `usedPercent` | Zahl | nein, Default 0 | wird auf 0..100 geclampt | `(serial_receiver.cpp:108-110, 521)` |
 | `resetsAt` | String | nein | ISO-8601 UTC oder `""`; Puffer 32 Bytes | `(serial_receiver.cpp:116-122)`, `(api_common.h:58)` |
-| `windowMinutes` | Int | nein | Fensterlänge; vom Gerät in `rows` nicht gelesen | `(main.swift:2923)` |
+| `windowMinutes` | Int | nein | Fensterlänge in Minuten, 0 = unbekannt. Ab Firmware 2.20.0 wählt das quadratische Panel damit den großen Ring (längstes Fenster, bei Gleichstand die erste Zeile) und zeichnet die Tempo-Marke | `(main.swift:2923)`, `(serial_receiver.cpp, set_usage_row)` |
 
 Prozentlogik: Der Host rechnet die Anzeige-Prozent vor dem Senden um. Im Modus `used` sind es die verbrauchten Prozent, im Modus `remaining` die verbleibenden (`100 - used`) `(main.swift:2846-2869)`, `(main.swift:556-561)`. Das Feld heißt in beiden Fällen `usedPercent`; das Gerät zeigt den Wert unverändert an. Bei Zeilen mit `percentLeft` aus der Quelle wird dieser bevorzugt `(main.swift:2858-2869)`.
 
@@ -510,6 +511,7 @@ Payload, hier zur Lesbarkeit umgebrochen; auf dem Draht ist es eine Zeile ohne Z
           {"id": "fable-weekly", "title": "Fable weekly", "usedPercent": 12, "resetsAt": "2026-09-14T09:00:00Z", "windowMinutes": 10080}
         ],
         "loginMethod": "Claude Max",
+        "percentMode": "used",
         "primary":   {"usedPercent": 37, "resetsAt": "2026-09-10T17:00:00Z", "windowMinutes": 300},
         "secondary": {"usedPercent": 62, "resetsAt": "2026-09-14T09:00:00Z", "windowMinutes": 10080}
       }

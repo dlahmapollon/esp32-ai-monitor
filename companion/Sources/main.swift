@@ -31,7 +31,7 @@ import Darwin
 // MARK: - Configuration
 // ============================================================
 
-let kAppVersion = "1.30.0"
+let kAppVersion = "1.31.0"
 let kSerialBaudRate: speed_t = 115200
 let kSerialScanInterval: TimeInterval = 3
 /// Legacy-Suite aus v1.x (<= 1.11.1). Wird ab v1.12.0 einmalig migriert und dann
@@ -2714,7 +2714,8 @@ class UsageMonitor {
         } else {
             layout = "landscape"
         }
-        let scene = DisplayPlugins.shared.scene(for: id, layout: layout)
+        let scene = DisplayPlugins.shared.scene(for: id, layout: layout,
+                                                language: Settings.shared.language)
         let envelope: [String: Any] = [
             "schemaVersion": 2,
             "frameId": frameId,
@@ -3524,9 +3525,12 @@ class UsageMonitor {
         // wurden fehlende Fenster als 0 % (im Restmodus sogar 100 %) serialisiert.
         // Besonders beim Codex-OAuth-Fallback sah das wie ein echter Stand aus,
         // obwohl lediglich kein Session-Fenster vorhanden war.
+        // `percentMode` sagt dem Gerät, ob `usedPercent` verbraucht oder
+        // verbleibend meint; die Tempo-Marke auf dem S3 läuft danach.
         var usagePayload: [String: Any] = [
             "rows": rowsPayload,
-            "loginMethod": loginMethodLabel
+            "loginMethod": loginMethodLabel,
+            "percentMode": percentMode.rawValue
         ]
         if entry.primary != nil {
             usagePayload["primary"] = [

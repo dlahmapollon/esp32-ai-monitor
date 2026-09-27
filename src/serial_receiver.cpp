@@ -61,6 +61,8 @@ static size_t serial_frame_received = 0;
 // C1: Wann der aktuelle framed-Payload begonnen hat (millis()), fuer den
 // Resync-Timeout falls die Uebertragung mitten im Payload abbricht.
 static unsigned long serial_frame_started_ms = 0;
+// Kennung aus dem Header des laufenden Frames, fuer Fehlermeldungen beim Abbruch.
+static long serial_frame_id = -1;
 
 static MonitorState state;
 static const uint8_t VIEW_MAX = 8;
@@ -144,6 +146,7 @@ static void clear_usage_rows(UsageData &usage) {
         usage.row_title[i][0] = '\0';
         usage.row_resets_at[i][0] = '\0';
         usage.row_reset_epoch[i] = 0;
+        usage.row_window_minutes[i] = 0;
     }
 }
 
@@ -153,9 +156,12 @@ static void set_usage_row(
     uint8_t provider,
     const char *title,
     float percent,
-    const char *resets_at
+    const char *resets_at,
+    int window_minutes
 ) {
     if (index >= USAGE_ROW_MAX) return;
+
+    usage.row_window_minutes[index] = window_minutes > 0 ? (uint32_t)window_minutes : 0;
 
     if (percent < 0.0f) percent = 0.0f;
     if (percent > 100.0f) percent = 100.0f;
@@ -230,6 +236,7 @@ static bool begin_framed_payload_from_header(const char *line) {
     serial_frame_expected = (size_t)length;
     serial_frame_received = 0;
     serial_frame_started_ms = millis();  // C1: start of resync timeout window
+    serial_frame_id = header_frame_id;
     serial_buf_pos = 0;
     return true;
 }
@@ -657,6 +664,8 @@ static void parse_usage_windows(JsonObject usage, JsonObject primary,
     if (!primary.isNull()) {
         float usedPct = primary["usedPercent"] | 0.0f;
         state.usage.five_hour_utilization = usedPct / 100.0f;
+        const int window = primary["windowMinutes"] | 0;
+        state.usage.five_hour_window_minutes = window > 0 ? (uint32_t)window : 0;
 
         const char *resetsAt = primary["resetsAt"];
         if (resetsAt) {
@@ -683,6 +692,8 @@ static void parse_usage_windows(JsonObject usage, JsonObject primary,
     if (!weekly_source.isNull()) {
         float usedPct = weekly_source["usedPercent"] | 0.0f;
         state.usage.seven_day_utilization = usedPct / 100.0f;
+        const int window = weekly_source["windowMinutes"] | 0;
+        state.usage.seven_day_window_minutes = window > 0 ? (uint32_t)window : 0;
 
         const char *resetsAt = weekly_source["resetsAt"];
         if (resetsAt) {
@@ -710,7 +721,8 @@ static void parse_usage_rows(JsonObject usage, JsonObject primary,
             float usedPct = row["usedPercent"] | 0.0f;
             const char *title = row["title"];
             const char *resetsAt = row["resetsAt"];
-            set_usage_row(state.usage, idx, state.provider, title, usedPct, resetsAt);
+            set_usage_row(state.usage, idx, state.provider, title, usedPct, resetsAt,
+                          row["windowMinutes"] | 0);
             idx++;
         }
     }
@@ -719,20 +731,23 @@ static void parse_usage_rows(JsonObject usage, JsonObject primary,
         const char *pri_reset = primary["resetsAt"] | "";
         set_usage_row(state.usage, 0, state.provider,
                       default_row_title_for_provider(state.provider, 0),
-                      primary["usedPercent"] | 0.0f, pri_reset);
+                      primary["usedPercent"] | 0.0f, pri_reset,
+                      primary["windowMinutes"] | 0);
 
         if (!secondary.isNull()) {
             const char *sec_reset = secondary["resetsAt"] | "";
             set_usage_row(state.usage, 1, state.provider,
                           default_row_title_for_provider(state.provider, 1),
-                          secondary["usedPercent"] | 0.0f, sec_reset);
+                          secondary["usedPercent"] | 0.0f, sec_reset,
+                          secondary["windowMinutes"] | 0);
         }
 
         if (!tertiary.isNull()) {
             const char *ter_reset = tertiary["resetsAt"] | "";
             set_usage_row(state.usage, 2, state.provider,
                           default_row_title_for_provider(state.provider, 2),
-                          tertiary["usedPercent"] | 0.0f, ter_reset);
+                          tertiary["usedPercent"] | 0.0f, ter_reset,
+                          tertiary["windowMinutes"] | 0);
         }
     }
 
@@ -747,11 +762,12 @@ static void parse_usage_rows(JsonObject usage, JsonObject primary,
                 const char *r = src["resetsAt"] | "";
                 set_usage_row(state.usage, i, state.provider,
                               default_row_title_for_provider(state.provider, i),
-                              src["usedPercent"] | 0.0f, r);
+                              src["usedPercent"] | 0.0f, r,
+                              src["windowMinutes"] | 0);
             } else {
                 set_usage_row(state.usage, i, state.provider,
                               default_row_title_for_provider(state.provider, i),
-                              0.0f, "");
+                              0.0f, "", 0);
             }
         }
     }
@@ -825,10 +841,14 @@ static void parse_json(const char *json_str) {
 
     if (err) {
         Serial.printf("[Serial] JSON parse error: %s\n", err.c_str());
-        strlcpy(state.status, "JSON Error", sizeof(state.status));
-        strlcpy(state.usage.error, err.c_str(), sizeof(state.usage.error));
-        state.usage.valid = false;
-        view_states[active_view] = state;  // sonst verwirft der nächste Frame den Fehler
+        // Ein kaputter Frame verdraengt keine gueltigen Daten: Er kann fuer
+        // ein anderes Fenster bestimmt gewesen sein, und der naechste Frame
+        // kommt ohnehin. Den Fehler zeigt nur ein Fenster ohne Daten.
+        if (!state.usage.valid) {
+            strlcpy(state.status, "JSON Error", sizeof(state.status));
+            strlcpy(state.usage.error, err.c_str(), sizeof(state.usage.error));
+            view_states[active_view] = state;  // sonst verwirft der nächste Frame den Fehler
+        }
         return;
     }
 
@@ -856,10 +876,12 @@ static void parse_json(const char *json_str) {
     if (data0.isNull()) {
         Serial.println("[Serial] No data[0] in JSON");
         print_frame_error(frame_id, schema_version, "Missing data[0]");
-        strlcpy(state.status, "JSON Error", sizeof(state.status));
-        strlcpy(state.usage.error, "Missing data[0]", sizeof(state.usage.error));
-        state.usage.valid = false;
-        view_states[active_view] = state;
+        // Wie beim Parse-Fehler: gueltige Daten bleiben stehen.
+        if (!state.usage.valid) {
+            strlcpy(state.status, "JSON Error", sizeof(state.status));
+            strlcpy(state.usage.error, "Missing data[0]", sizeof(state.usage.error));
+            view_states[active_view] = state;
+        }
         return;
     }
 
@@ -983,6 +1005,11 @@ static void parse_json(const char *json_str) {
     }
 
     clear_usage_rows(state.usage);
+    state.usage.five_hour_window_minutes = 0;
+    state.usage.seven_day_window_minutes = 0;
+    // Fehlt das Feld (aeltere Apps), zeigt der Host verbrauchte Prozent.
+    const char *percent_mode = usage["percentMode"] | "used";
+    state.usage.shows_remaining = strcmp(percent_mode, "remaining") == 0;
 
     JsonObject primary = usage["primary"];
     JsonObject secondary = usage["secondary"];
@@ -1094,6 +1121,24 @@ void serial_receiver_tick() {
         char c = Serial.read();
 
         if (serial_receiving_frame) {
+            // Der Payload ist eine Zeile ohne Umbruch. Kommt der Umbruch vor
+            // der angekuendigten Laenge, sind unterwegs Bytes verloren
+            // gegangen. Frame verwerfen und im Zeilenmodus weiterlesen, damit
+            // der naechste Header wieder erkannt wird. Sonst zaehlten dessen
+            // Bytes zu diesem Frame und sein Rest landete als Bruchstueck
+            // (etwa `27,"resetsAt":...`) im JSON-Parser.
+            if (c == '\n') {
+                Serial.printf("{\"type\":\"error\",\"frameId\":%ld,"
+                              "\"message\":\"frame truncated (%u of %u bytes)\"}\n",
+                              serial_frame_id,
+                              (unsigned)serial_frame_received,
+                              (unsigned)serial_frame_expected);
+                serial_receiving_frame = false;
+                serial_frame_expected = 0;
+                serial_frame_received = 0;
+                serial_buf_pos = 0;
+                continue;
+            }
             if (serial_frame_received < SERIAL_FRAME_MAX_SIZE) {
                 serial_buf[serial_frame_received++] = c;
             }
@@ -1149,6 +1194,8 @@ void serial_receiver_tick() {
         serial_frame_expected = 0;
         serial_frame_received = 0;
         serial_buf_pos = 0;
+        // Der Rest des Payloads kommt eventuell noch: bis zum Zeilenende verwerfen.
+        serial_discard_until_newline = true;
     }
 
     // Check for data timeout

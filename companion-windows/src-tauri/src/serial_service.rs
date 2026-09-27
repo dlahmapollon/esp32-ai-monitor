@@ -16,7 +16,7 @@ use crate::tray;
 use aimonitor_core::envelope::{
     diagnostic_envelope, notice_envelope, usage_envelope, FrameContext,
 };
-use aimonitor_core::plugin::{scene_envelope, status_scene, SceneLayout};
+use aimonitor_core::plugin::{scene_envelope, status_scene, status_text, SceneLayout};
 use aimonitor_core::protocol::{
     Command, DisplayVariant, FrameIdCounter, Language, Orientation, ThemeSetting,
     DIAGNOSTIC_AFTER_CONNECT, DIAGNOSTIC_RESTORE, GET_INFO_TIMEOUT, HEARTBEAT_INTERVAL,
@@ -848,6 +848,11 @@ impl Service {
                     .as_ref()
                     .map(|profile| profile.orientation)
                     .or(info.orientation);
+                let language = self
+                    .profile
+                    .as_ref()
+                    .map(|p| p.language)
+                    .unwrap_or_default();
                 let layout = if info.display == Some(DisplayVariant::St7701) {
                     SceneLayout::Square
                 } else if matches!(
@@ -866,17 +871,12 @@ impl Service {
                     .unwrap()
                     .records
                     .get(id)
-                    .map(|record| {
-                        record.scene(
-                            layout,
-                            self.profile
-                                .as_ref()
-                                .map(|profile| profile.language.wire())
-                                .unwrap_or("de"),
-                        )
-                    })
+                    .map(|record| record.scene(layout, language))
                     .unwrap_or_else(|| {
-                        status_scene("Plugin missing", "Install this plugin in Settings")
+                        status_scene(
+                            status_text("missing", language),
+                            status_text("missing.hint", language),
+                        )
                     });
                 let frame_id = self.frame_ids.next();
                 match scene_envelope(id, index, scene, frame_id) {

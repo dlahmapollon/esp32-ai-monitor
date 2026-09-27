@@ -304,20 +304,35 @@ final class DisplayPlugins {
         }
     }
 
-    func scene(for id: String, layout: String) -> [String: Any] {
+    func scene(for id: String, layout: String, language: String) -> [String: Any] {
+        let text = { (key: String) in Self.statusText(key, language: language) }
         guard let record = records[id] else {
-            return Self.statusScene("Plugin missing", "Install this plugin in Settings")
+            return Self.statusScene(text("missing"), text("missing.hint"))
         }
         let title = Self.localized(record.info["viewLabel"] as? String ?? "Plugin", info: record.info)
-        if record.error != nil { return Self.statusScene(title, "Data unavailable") }
+        if record.error != nil { return Self.statusScene(title, text("unavailable")) }
         guard let scene = record.scenes[layout], let fetched = record.fetchedAt else {
-            return Self.statusScene(title, "Loading data...")
+            return Self.statusScene(title, text("loading"))
         }
         let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
         if Date().timeIntervalSince(fetched) > interval * 3 {
-            return Self.statusScene(title, "Data stale - waiting for update")
+            return Self.statusScene(title, text("stale"))
         }
         return scene
+    }
+
+    /// Statustexte in der Sprache des Displays. Die Firmware nimmt in Szenen
+    /// nur druckbares ASCII an, deshalb stehen die deutschen Texte ohne Umlaute.
+    static func statusText(_ key: String, language: String) -> String {
+        let de = language == "de"
+        switch key {
+        case "missing":      return de ? "Plugin fehlt" : "Plugin missing"
+        case "missing.hint": return de ? "Plugin in den Einstellungen installieren" : "Install this plugin in Settings"
+        case "unavailable":  return de ? "Daten nicht abrufbar" : "Data unavailable"
+        case "loading":      return de ? "Lade Daten ..." : "Loading data..."
+        case "stale":        return de ? "Daten veraltet - warte auf Update" : "Data stale - waiting for update"
+        default:             return ""
+        }
     }
 
     static func statusScene(_ title: String, _ message: String) -> [String: Any] {

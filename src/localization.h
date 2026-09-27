@@ -38,6 +38,9 @@ enum StrId {
     STR_USB_CONNECTED,    // "USB verbunden..." / "USB connected..."
     STR_INITIALIZING,     // "Initialisiere..." / "Initializing..."
     STR_AGO,              // "vor" / "ago" (for time formatting)
+    STR_ON_PACE,          // "im Plan" / "On pace"
+    STR_TOO_FAST,         // "zu schnell" / "Too fast"
+    STR_TIME_ELAPSED,     // "%d %% der Zeit vergangen" / "%d%% of time elapsed"
     _STR_COUNT
 };
 
