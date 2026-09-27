@@ -21,6 +21,29 @@ digits, dots, hyphens, or underscores. A changed ID creates a different plugin.
 shown to users. Version 1 requires printable ASCII in metadata and display
 text because the device font and wire validator currently use that subset.
 
+An optional `localizations` object maps locale codes to exact translations of
+author-supplied strings. For example:
+
+```json
+"localizations": {
+  "de": {
+    "Weather": "Wetter",
+    "HIGH / LOW": "HOCH / TIEF",
+    "Humidity {{humidity}}%": "Feuchte {{humidity}}%",
+    "Clear sky": "Klarer Himmel"
+  }
+}
+```
+
+Keys are the original text from metadata, setting labels, scene text templates,
+binding maps, or fallbacks. The companion selects the display language for
+scenes and its UI language for plugin names and setting labels. Missing entries
+use the original text. Keep `{{binding_name}}` placeholders in translated scene
+templates. `visibleWhen.equals` continues to match localized map values, so a
+condition need not be duplicated per language. Localized display text remains
+printable ASCII with the current scene protocol. Companions released before
+this extension reject packages containing `localizations`.
+
 Firmware reports `sceneProtocol: 1` through `get_info`. Older firmware cannot
 display plugin windows. The companion keeps up to 20 installed plugins; the
 window manager has eight slots and can place the same plugin in several slots.
@@ -84,6 +107,8 @@ cargo run --quiet --manifest-path companion-windows/Cargo.toml \
   -p aimonitor-plugin-host -- inspect path/to/my-plugin.aimplugin
 cargo run --quiet --manifest-path companion-windows/Cargo.toml \
   -p aimonitor-plugin-host -- render path/to/my-plugin.aimplugin - all path/to/response.json
+cargo run --quiet --manifest-path companion-windows/Cargo.toml \
+  -p aimonitor-plugin-host -- render path/to/my-plugin.aimplugin - all path/to/response.json --locale=de
 ```
 
 `render` accepts a local JSON response fixture, so layout changes can be

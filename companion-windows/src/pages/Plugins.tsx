@@ -2,17 +2,18 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   configurePlugin, inspectPlugin, installPlugin, removePlugin,
-  type PluginInfo, type PluginPreview,
+  pluginText, type PluginInfo, type PluginPreview,
 } from "../api";
 import type { Translate } from "../i18n";
 
 interface Props {
   t: Translate;
+  locale: string;
   plugins: PluginInfo[];
   onRefresh: () => void;
 }
 
-function PluginSettings({ t, plugin, onRefresh }: { t: Translate; plugin: PluginInfo; onRefresh: () => void }) {
+function PluginSettings({ t, locale, plugin, onRefresh }: { t: Translate; locale: string; plugin: PluginInfo; onRefresh: () => void }) {
   const [values, setValues] = useState(plugin.settings);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ function PluginSettings({ t, plugin, onRefresh }: { t: Translate; plugin: Plugin
     } finally { setBusy(false); }
   };
   const remove = async () => {
-    if (!window.confirm(t("plugins.remove.confirm", { name: plugin.name }))) return;
+    if (!window.confirm(t("plugins.remove.confirm", { name: pluginText(plugin, locale, plugin.name) }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -45,8 +46,8 @@ function PluginSettings({ t, plugin, onRefresh }: { t: Translate; plugin: Plugin
   return (
     <article className="card plugin-card">
       <div className="plugin-card-head">
-        <div><h3>{plugin.name} <span className="muted">v{plugin.version}</span></h3>
-          <p className="muted">{plugin.description}</p></div>
+        <div><h3>{pluginText(plugin, locale, plugin.name)} <span className="muted">v{plugin.version}</span></h3>
+          <p className="muted">{pluginText(plugin, locale, plugin.description)}</p></div>
         <button type="button" className="btn" disabled={busy} onClick={remove}>{t("plugins.remove")}</button>
       </div>
       <p className="muted small">{t("plugins.by", { author: plugin.author })} · {plugin.sourceOrigin} · {t("plugins.unsigned")}</p>
@@ -54,7 +55,7 @@ function PluginSettings({ t, plugin, onRefresh }: { t: Translate; plugin: Plugin
       <div className="plugin-settings">
         {plugin.settingsSpec.map((spec) => (
           <label key={spec.key} className="field-row">
-            <span className="field-label">{spec.label}</span>
+            <span className="field-label">{pluginText(plugin, locale, spec.label)}</span>
             <input className="input" type={spec.kind === "number" ? "number" : "text"}
               min={spec.min ?? undefined} max={spec.max ?? undefined}
               step={spec.kind === "number" ? "any" : undefined}
@@ -78,7 +79,7 @@ function PluginSettings({ t, plugin, onRefresh }: { t: Translate; plugin: Plugin
   );
 }
 
-export default function Plugins({ t, plugins, onRefresh }: Props) {
+export default function Plugins({ t, locale, plugins, onRefresh }: Props) {
   const [source, setSource] = useState("");
   const [candidate, setCandidate] = useState<PluginPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -127,8 +128,8 @@ export default function Plugins({ t, plugins, onRefresh }: Props) {
         </div>
         {candidate && (
           <div className="plugin-preview">
-            <h4>{candidate.name} · v{candidate.version}</h4>
-            <p>{candidate.description}</p>
+            <h4>{pluginText(candidate, locale, candidate.name)} · v{candidate.version}</h4>
+            <p>{pluginText(candidate, locale, candidate.description)}</p>
             <p className="muted small">{t("plugins.by", { author: candidate.author })}</p>
             <p>{t("plugins.permission", { origin: candidate.sourceOrigin })}</p>
             <p className="muted small">{t("plugins.unsigned")} · SHA-256 {candidate.sha256.slice(0, 16)}…</p>
@@ -140,7 +141,7 @@ export default function Plugins({ t, plugins, onRefresh }: Props) {
       </div>
       <h2>{t("plugins.installed")}</h2>
       {plugins.length === 0 && <p className="muted">{t("plugins.none")}</p>}
-      {plugins.map((plugin) => <PluginSettings key={plugin.id} t={t} plugin={plugin} onRefresh={onRefresh} />)}
+      {plugins.map((plugin) => <PluginSettings key={plugin.id} t={t} locale={locale} plugin={plugin} onRefresh={onRefresh} />)}
     </section>
   );
 }

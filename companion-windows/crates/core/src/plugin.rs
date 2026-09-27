@@ -79,6 +79,10 @@ pub struct Manifest {
     pub settings: Vec<Setting>,
     pub bindings: Vec<Binding>,
     pub scenes: SceneVariants,
+    /// Optional exact-text translations of author-supplied display strings.
+    /// Missing locales and entries use the manifest's original text.
+    #[serde(default)]
+    pub localizations: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,7 +272,54 @@ impl Manifest {
                 validate_template_node(node, &names, &self.bindings)?;
             }
         }
+        if self.localizations.len() > 16
+            || self.localizations.iter().any(|(locale, entries)| {
+                !valid_key(locale, 16)
+                    || entries.len() > 100
+                    || entries.iter().any(|(source, translated)| {
+                        !printable(source, 300)
+                            || source.is_empty()
+                            || !printable(translated, 300)
+                            || translated.is_empty()
+                    })
+            })
+        {
+            return Err("invalid plugin localizations".into());
+        }
+        for (locale, _) in &self.localizations {
+            for binding in &self.bindings {
+                for value in binding
+                    .map
+                    .values()
+                    .chain(std::iter::once(&binding.fallback))
+                {
+                    if !printable(self.localized(locale, value), 64) {
+                        return Err("localized binding too long".into());
+                    }
+                }
+            }
+            for scene in [&self.scenes.portrait, &self.scenes.landscape]
+                .into_iter()
+                .chain(self.scenes.square.as_ref())
+            {
+                for node in &scene.nodes {
+                    if let Some(source) = node.get("text").and_then(Value::as_str) {
+                        let mut translated = node.clone();
+                        translated["text"] = json!(self.localized(locale, source));
+                        validate_template_node(&translated, &names, &self.bindings)?;
+                    }
+                }
+            }
+        }
         Ok(())
+    }
+
+    pub fn localized<'a>(&'a self, locale: &str, source: &'a str) -> &'a str {
+        self.localizations
+            .get(locale)
+            .and_then(|entries| entries.get(source))
+            .map(String::as_str)
+            .unwrap_or(source)
     }
 
     pub fn default_settings(&self) -> Map<String, Value> {
@@ -311,6 +362,16 @@ impl Manifest {
         data: &Value,
         settings: &Map<String, Value>,
     ) -> Result<Value, String> {
+        self.scene_localized(layout, data, settings, "en")
+    }
+
+    pub fn scene_localized(
+        &self,
+        layout: SceneLayout,
+        data: &Value,
+        settings: &Map<String, Value>,
+        locale: &str,
+    ) -> Result<Value, String> {
         for setting in &self.settings {
             validate_setting(
                 setting,
@@ -324,7 +385,20 @@ impl Manifest {
             } else {
                 lookup(data, &binding.path)
             };
-            let formatted = format_binding(binding, source);
+            let formatted = if binding.format == BindingFormat::Map {
+                let key = source.map(|v| {
+                    v.as_str()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| v.to_string())
+                });
+                let base = key
+                    .as_ref()
+                    .and_then(|key| binding.map.get(key))
+                    .unwrap_or(&binding.fallback);
+                format!("{}{}", self.localized(locale, base), binding.suffix)
+            } else {
+                format_binding(binding, source)
+            };
             if !printable(&formatted, 64) {
                 return Err("binding text too long".into());
             }
@@ -348,13 +422,16 @@ impl Manifest {
                     .get("equals")
                     .and_then(Value::as_str)
                     .ok_or("invalid condition")?;
-                if values.get(binding).is_none_or(|value| value != expected) {
+                if values
+                    .get(binding)
+                    .is_none_or(|value| value != self.localized(locale, expected))
+                {
                     continue;
                 }
             }
             if let Some(text) = object.get_mut("text") {
                 let original = text.as_str().ok_or("invalid text")?;
-                let mut rendered = original.to_owned();
+                let mut rendered = self.localized(locale, original).to_owned();
                 for (key, value) in &values {
                     rendered = rendered.replace(&format!("{{{{{key}}}}}"), value);
                 }
@@ -571,8 +648,10 @@ mod tests {
     use super::*;
 
     fn fixture() -> Manifest {
-        parse_manifest(include_bytes!("../../../../tests/fixtures/display-plugin/plugin.json"))
-            .unwrap()
+        parse_manifest(include_bytes!(
+            "../../../../tests/fixtures/display-plugin/plugin.json"
+        ))
+        .unwrap()
     }
 
     #[test]
@@ -600,6 +679,54 @@ mod tests {
                 .any(|n| n["text"].as_str().is_some_and(|s| s.contains("18 pts"))));
             assert!(nodes.iter().any(|n| n["type"] == "bar" && n["value"] == 62));
         }
+    }
+
+    #[test]
+    fn localizations_translate_static_and_mapped_text_with_fallback() {
+        let mut plugin = fixture();
+        plugin.localizations.insert(
+            "de".into(),
+            BTreeMap::from([
+                ("English label".into(), "Deutscher Text".into()),
+                ("Active".into(), "Aktiv".into()),
+            ]),
+        );
+        let response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        ))
+        .unwrap();
+        let settings = plugin.default_settings();
+        // Use a simple scene text to exercise translation before interpolation.
+        plugin.scenes.portrait.nodes.push(json!({
+            "type":"text", "x":0, "y":0, "w":200, "h":30,
+            "color":16777215, "text":"English label"
+        }));
+        let de = plugin
+            .scene_localized(SceneLayout::Portrait, &response, &settings, "de")
+            .unwrap();
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "Deutscher Text"));
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "Aktiv"));
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["type"] == "circle"));
+        let fr = plugin
+            .scene_localized(SceneLayout::Portrait, &response, &settings, "fr")
+            .unwrap();
+        assert!(fr["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "English label"));
     }
 
     #[test]

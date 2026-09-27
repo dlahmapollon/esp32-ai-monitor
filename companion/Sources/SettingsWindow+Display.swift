@@ -638,6 +638,7 @@ extension SettingsWindowController {
         let i = languagePopup.indexOfSelectedItem
         Settings.shared.language = langs[max(0, min(i, langs.count - 1))]
         monitor?.sendLanguageToESP32()
+        DisplayPlugins.shared.refresh(views: Settings.shared.displayViews)
     }
 
     @objc private func brightnessChanged() {

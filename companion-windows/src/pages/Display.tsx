@@ -19,6 +19,7 @@ import ViewManager from "./ViewManager";
 
 interface Props {
   t: Translate;
+  locale: string;
   connection: ConnectionSnapshot | null;
   settings: Settings | null;
   providers: ProviderInfo[];
@@ -34,7 +35,7 @@ const ORIENTATIONS: Orientation[] = ["portrait", "landscape_left", "landscape_ri
 const THEMES: ThemeSetting[] = ["system", "dark", "light"];
 const LANGUAGES: DisplayLanguage[] = ["de", "en"];
 
-export default function Display({ t, connection, settings, providers, plugins, onSettings, onSettingsChanged }: Props) {
+export default function Display({ t, locale, connection, settings, providers, plugins, onSettings, onSettingsChanged }: Props) {
   const profile = connection?.profile ?? null;
   const connected = connection?.state === "connected";
   const [name, setName] = useState(profile?.friendlyName ?? "");
@@ -153,7 +154,7 @@ export default function Display({ t, connection, settings, providers, plugins, o
         </p>
       )}
 
-      {settings && <ViewManager t={t} settings={settings} providers={providers} plugins={plugins} connection={connection} onSettings={onSettings} />}
+      {settings && <ViewManager t={t} locale={locale} settings={settings} providers={providers} plugins={plugins} connection={connection} onSettings={onSettings} />}
 
       <h2>{t("disp.step.look")}</h2>
       <div className="field-row">

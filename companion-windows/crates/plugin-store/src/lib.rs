@@ -30,6 +30,7 @@ pub struct PluginPreview {
     pub sha256: String,
     pub signed: bool,
     pub settings_spec: Vec<Setting>,
+    pub localizations: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -46,6 +47,7 @@ pub struct PluginInfo {
     pub sha256: String,
     pub signed: bool,
     pub settings_spec: Vec<Setting>,
+    pub localizations: BTreeMap<String, BTreeMap<String, String>>,
     pub settings: Map<String, Value>,
     pub fetched_at: Option<DateTime<Utc>>,
     pub last_error: Option<String>,
@@ -83,13 +85,14 @@ impl PluginRecord {
             sha256: self.sha256.clone(),
             signed: false,
             settings_spec: self.manifest.settings.clone(),
+            localizations: self.manifest.localizations.clone(),
             settings: self.settings.clone(),
             fetched_at: self.fetched_at,
             last_error: self.last_error.clone(),
         }
     }
 
-    pub fn scene(&self, layout: SceneLayout) -> Value {
+    pub fn scene(&self, layout: SceneLayout, locale: &str) -> Value {
         if let Some(error) = &self.last_error {
             return status_scene(
                 &self.manifest.view_label,
@@ -108,7 +111,7 @@ impl PluginRecord {
             return status_scene(&self.manifest.view_label, "Data stale - waiting for update");
         }
         self.manifest
-            .scene(layout, data, &self.settings)
+            .scene_localized(layout, data, &self.settings, locale)
             .unwrap_or_else(|_| {
                 status_scene(&self.manifest.view_label, "Cannot render plugin data")
             })
@@ -458,6 +461,7 @@ pub fn inspect(bytes: &[u8]) -> Result<PluginPreview, String> {
         sha256: package.sha256,
         signed: false,
         settings_spec: manifest.settings,
+        localizations: manifest.localizations,
     })
 }
 
@@ -572,7 +576,7 @@ mod tests {
         let due = store.due_fetches(&assigned);
         assert_eq!(due.len(), 1);
         store.apply_fetch(id, &due[0].1, &updated, Ok(response));
-        let scene = store.records[id].scene(SceneLayout::Portrait);
+        let scene = store.records[id].scene(SceneLayout::Portrait, "en");
         assert!(scene["nodes"]
             .as_array()
             .unwrap()
@@ -580,7 +584,7 @@ mod tests {
             .any(|node| node["text"] == "Updated"));
 
         store.apply_fetch(id, &due[0].1, &updated, Err("offline".into()));
-        let unavailable = store.records[id].scene(SceneLayout::Portrait);
+        let unavailable = store.records[id].scene(SceneLayout::Portrait, "en");
         assert!(unavailable["nodes"]
             .as_array()
             .unwrap()

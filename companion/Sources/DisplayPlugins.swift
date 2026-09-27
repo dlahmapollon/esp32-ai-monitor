@@ -15,6 +15,7 @@ struct DisplayPluginRecord {
     var fetchedAt: Date?
     var lastAttempt: Date?
     var error: String?
+    var sceneLocale: String?
 }
 
 final class DisplayPlugins {
@@ -25,6 +26,12 @@ final class DisplayPlugins {
     private var fetching = Set<String>()
 
     private let root: URL
+
+    static func localized(_ source: String, info: [String: Any]) -> String {
+        let locale = Settings.shared.language == "en" ? "en" : "de"
+        let dictionaries = info["localizations"] as? [String: [String: String]]
+        return dictionaries?[locale]?[source] ?? source
+    }
 
     private init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory,
@@ -45,7 +52,8 @@ final class DisplayPlugins {
 
     func label(for view: String) -> String {
         guard let id = Self.id(from: view) else { return view }
-        return records[id]?.info["viewLabel"] as? String ?? id
+        guard let info = records[id]?.info else { return id }
+        return Self.localized(info["viewLabel"] as? String ?? id, info: info)
     }
 
     private func packagePath(_ id: String) -> URL {
@@ -250,13 +258,15 @@ final class DisplayPlugins {
     }
 
     func refresh(views: [String]) {
+        let locale = Settings.shared.language == "en" ? "en" : "de"
         for id in Set(views.compactMap(Self.id(from:))) {
             guard var record = records[id] else { continue }
             guard !fetching.contains(id) else { continue }
             let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
             let now = Date()
             let retryAfter = record.error == nil ? interval : min(interval, 60)
-            if let attempt = record.lastAttempt, now.timeIntervalSince(attempt) < retryAfter { continue }
+            if record.sceneLocale == locale,
+               let attempt = record.lastAttempt, now.timeIntervalSince(attempt) < retryAfter { continue }
             record.lastAttempt = now
             records[id] = record
             fetching.insert(id)
@@ -264,7 +274,7 @@ final class DisplayPlugins {
             let settings = settingsPath(id).path
             let generation = record.generation
             DispatchQueue.global(qos: .utility).async {
-                let result = Result { try Self.helper(["render", package, settings, "all"]) }
+                let result = Result { try Self.helper(["render", package, settings, "all", "--locale=\(locale)"]) }
                 DispatchQueue.main.async {
                     self.fetching.remove(id)
                     guard var current = self.records[id], current.packageURL.path == package,
@@ -275,6 +285,7 @@ final class DisplayPlugins {
                            scenes["portrait"] != nil, scenes["landscape"] != nil,
                            scenes["square"] != nil {
                             current.scenes = scenes
+                            current.sceneLocale = locale
                             current.fetchedAt = Date()
                             current.error = nil
                         } else {
@@ -285,6 +296,9 @@ final class DisplayPlugins {
                     }
                     self.records[id] = current
                     self.onChange?()
+                    if Settings.shared.language != locale {
+                        self.refresh(views: Settings.shared.displayViews)
+                    }
                 }
             }
         }
@@ -294,7 +308,7 @@ final class DisplayPlugins {
         guard let record = records[id] else {
             return Self.statusScene("Plugin missing", "Install this plugin in Settings")
         }
-        let title = record.info["viewLabel"] as? String ?? "Plugin"
+        let title = Self.localized(record.info["viewLabel"] as? String ?? "Plugin", info: record.info)
         if record.error != nil { return Self.statusScene(title, "Data unavailable") }
         guard let scene = record.scenes[layout], let fetched = record.fetchedAt else {
             return Self.statusScene(title, "Loading data...")

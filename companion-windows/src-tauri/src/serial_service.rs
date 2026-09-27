@@ -18,10 +18,10 @@ use aimonitor_core::envelope::{
 };
 use aimonitor_core::plugin::{scene_envelope, status_scene, SceneLayout};
 use aimonitor_core::protocol::{
-    Command, DisplayVariant, FrameIdCounter, Language, Orientation, ThemeSetting, DIAGNOSTIC_AFTER_CONNECT,
-    DIAGNOSTIC_RESTORE, GET_INFO_TIMEOUT, HEARTBEAT_INTERVAL, LATE_INFO_WINDOW,
-    RECONNECT_BLOCK_WINDOW, REPAIR_COOLDOWN, REPAIR_RECONNECT_DELAY, REPAIR_THRESHOLD,
-    SCAN_INTERVAL, SEND_DEBOUNCE,
+    Command, DisplayVariant, FrameIdCounter, Language, Orientation, ThemeSetting,
+    DIAGNOSTIC_AFTER_CONNECT, DIAGNOSTIC_RESTORE, GET_INFO_TIMEOUT, HEARTBEAT_INTERVAL,
+    LATE_INFO_WINDOW, RECONNECT_BLOCK_WINDOW, REPAIR_COOLDOWN, REPAIR_RECONNECT_DELAY,
+    REPAIR_THRESHOLD, SCAN_INTERVAL, SEND_DEBOUNCE,
 };
 use aimonitor_core::protocol::{DeviceMessage, ViewState};
 use aimonitor_core::{DeviceInfo, DeviceProfile, Snapshot};
@@ -866,7 +866,15 @@ impl Service {
                     .unwrap()
                     .records
                     .get(id)
-                    .map(|record| record.scene(layout))
+                    .map(|record| {
+                        record.scene(
+                            layout,
+                            self.profile
+                                .as_ref()
+                                .map(|profile| profile.language.wire())
+                                .unwrap_or("de"),
+                        )
+                    })
                     .unwrap_or_else(|| {
                         status_scene("Plugin missing", "Install this plugin in Settings")
                     });

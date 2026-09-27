@@ -47,6 +47,7 @@ fn inspect(manifest: &Manifest, sha256: &str) -> Result<Value, String> {
         "sha256": sha256,
         "signed": false,
         "settingsSpec": manifest.settings,
+        "localizations": manifest.localizations,
         "settings": manifest.default_settings(),
     }))
 }
@@ -115,7 +116,17 @@ fn download_package(source: &str) -> Result<Vec<u8>, String> {
 }
 
 fn run() -> Result<Value, String> {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
+    let locale = if args.last().is_some_and(|arg| arg.starts_with("--locale=")) {
+        let value = args.pop().unwrap();
+        let locale = value.trim_start_matches("--locale=");
+        if !matches!(locale, "de" | "en") {
+            return Err("unsupported plugin locale".into());
+        }
+        locale.to_owned()
+    } else {
+        "en".to_owned()
+    };
     if args.len() < 3 {
         return Err("usage: aimonitor-plugin-host inspect|render PACKAGE [SETTINGS] [portrait|landscape|square|all] [FIXTURE]".into());
     }
@@ -166,15 +177,24 @@ fn run() -> Result<Value, String> {
                 fetch(&package.manifest, &settings)?
             };
             if orientation == "all" {
-                let portrait = package
-                    .manifest
-                    .scene(SceneLayout::Portrait, &data, &settings)?;
-                let landscape = package
-                    .manifest
-                    .scene(SceneLayout::Landscape, &data, &settings)?;
-                let square = package
-                    .manifest
-                    .scene(SceneLayout::Square, &data, &settings)?;
+                let portrait = package.manifest.scene_localized(
+                    SceneLayout::Portrait,
+                    &data,
+                    &settings,
+                    &locale,
+                )?;
+                let landscape = package.manifest.scene_localized(
+                    SceneLayout::Landscape,
+                    &data,
+                    &settings,
+                    &locale,
+                )?;
+                let square = package.manifest.scene_localized(
+                    SceneLayout::Square,
+                    &data,
+                    &settings,
+                    &locale,
+                )?;
                 Ok(
                     json!({"scenes": {"portrait": portrait, "landscape": landscape, "square": square}}),
                 )
@@ -184,7 +204,9 @@ fn run() -> Result<Value, String> {
                     "square" => SceneLayout::Square,
                     _ => SceneLayout::Portrait,
                 };
-                let scene = package.manifest.scene(layout, &data, &settings)?;
+                let scene = package
+                    .manifest
+                    .scene_localized(layout, &data, &settings, &locale)?;
                 Ok(json!({"scene": scene}))
             }
         }

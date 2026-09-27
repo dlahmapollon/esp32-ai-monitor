@@ -1,9 +1,10 @@
-import type { Language, PercentMode, PluginInfo, ProviderInfo, ProviderKey, Settings, Snapshot, Status, ViewContent } from "../api";
+import { pluginText, type Language, type PercentMode, type PluginInfo, type ProviderInfo, type ProviderKey, type Settings, type Snapshot, type Status, type ViewContent } from "../api";
 import { formatAgo, formatCountdown } from "../format";
 import type { Translate } from "../i18n";
 
 interface Props {
   t: Translate;
+  locale: string;
   now: number;
   snapshot: Snapshot | null;
   settings: Settings | null;
@@ -27,7 +28,7 @@ function statusText(t: Translate, status: Status): { label: string; message: str
   }
 }
 
-export default function Overview({ t, now, snapshot, settings, providers, plugins, onProvider, onRefresh, onSettings }: Props) {
+export default function Overview({ t, locale, now, snapshot, settings, providers, plugins, onProvider, onRefresh, onSettings }: Props) {
   const status = snapshot ? statusText(t, snapshot.status) : null;
   const fetching = snapshot?.fetching ?? false;
   const activeProvider = settings?.provider ?? snapshot?.provider;
@@ -40,7 +41,7 @@ export default function Overview({ t, now, snapshot, settings, providers, plugin
   const viewLabel = (view: ViewContent) => view.kind === "clock"
     ? t("views.clock")
     : view.kind === "plugin"
-      ? plugins.find((plugin) => plugin.id === view.provider)?.viewLabel ?? view.provider
+      ? (() => { const plugin = plugins.find((plugin) => plugin.id === view.provider); return plugin ? pluginText(plugin, locale, plugin.viewLabel) : view.provider; })()
       : providers.find((provider) => provider.key === view.provider)?.label ?? view.provider;
 
   return (

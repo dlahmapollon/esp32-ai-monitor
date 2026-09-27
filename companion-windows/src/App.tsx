@@ -169,6 +169,7 @@ export default function App() {
         {page === "overview" && (
           <Overview
             t={t}
+            locale={locale}
             now={now}
             snapshot={snapshot}
             settings={settings}
@@ -180,8 +181,8 @@ export default function App() {
           />
         )}
         {page === "connection" && <Connection t={t} now={now} connection={connection} />}
-        {page === "display" && <Display t={t} connection={connection} settings={settings} providers={providers} plugins={plugins} onSettings={updateSettings} onSettingsChanged={reloadSettings} />}
-        {page === "plugins" && <Plugins t={t} plugins={plugins} onRefresh={() => listPlugins().then(setPlugins).catch(console.error)} />}
+        {page === "display" && <Display t={t} locale={locale} connection={connection} settings={settings} providers={providers} plugins={plugins} onSettings={updateSettings} onSettingsChanged={reloadSettings} />}
+        {page === "plugins" && <Plugins t={t} locale={locale} plugins={plugins} onRefresh={() => listPlugins().then(setPlugins).catch(console.error)} />}
         {page === "updates" && <Updates t={t} connection={connection} settings={settings} onSettings={updateSettings} />}
         {page === "diagnostics" && <Diagnostics t={t} snapshot={snapshot} />}
       </main>
