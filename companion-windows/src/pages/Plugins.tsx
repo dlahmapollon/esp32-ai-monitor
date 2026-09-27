@@ -51,7 +51,7 @@ function PluginSettings({ t, locale, plugin, onRefresh }: { t: Translate; locale
         <button type="button" className="btn" disabled={busy} onClick={remove}>{t("plugins.remove")}</button>
       </div>
       <p className="muted small">{t("plugins.by", { author: plugin.author })} · {plugin.sourceOrigin} · {t("plugins.unsigned")}</p>
-      {plugin.attribution && <p className="muted small">{plugin.attribution}</p>}
+      {plugin.attribution && <p className="muted small">{pluginText(plugin, locale, plugin.attribution)}</p>}
       <div className="plugin-settings">
         {plugin.settingsSpec.map((spec) => (
           <label key={spec.key} className="field-row">
@@ -133,7 +133,7 @@ export default function Plugins({ t, locale, plugins, onRefresh }: Props) {
             <p className="muted small">{t("plugins.by", { author: candidate.author })}</p>
             <p>{t("plugins.permission", { origin: candidate.sourceOrigin })}</p>
             <p className="muted small">{t("plugins.unsigned")} · SHA-256 {candidate.sha256.slice(0, 16)}…</p>
-            {candidate.attribution && <p className="muted small">{candidate.attribution}</p>}
+            {candidate.attribution && <p className="muted small">{pluginText(candidate, locale, candidate.attribution)}</p>}
             <button type="button" className="btn btn-primary" onClick={install} disabled={busy}>{t("common.install")}</button>
           </div>
         )}

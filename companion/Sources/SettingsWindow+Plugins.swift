@@ -66,7 +66,7 @@ extension SettingsWindowController {
                 L("plugins.detail", id, author, origin))
             detail.font = NSFont.appFont(.subheadline)
             detail.textColor = .secondaryLabelColor
-            let attribution = info["attribution"] as? String ?? ""
+            let attribution = DisplayPlugins.localized(info["attribution"] as? String ?? "", info: info)
             let credit = NSTextField(wrappingLabelWithString: attribution)
             credit.font = NSFont.appFont(.subheadline)
             credit.textColor = .secondaryLabelColor
