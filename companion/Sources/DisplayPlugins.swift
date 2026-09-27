@@ -27,8 +27,8 @@ final class DisplayPlugins {
 
     private let root: URL
 
-    static func localized(_ source: String, info: [String: Any]) -> String {
-        let locale = Settings.shared.language == "en" ? "en" : "de"
+    static func localized(_ source: String, info: [String: Any], locale: String? = nil) -> String {
+        let locale = locale ?? (Bundle.main.preferredLocalizations.first?.hasPrefix("de") == true ? "de" : "en")
         let dictionaries = info["localizations"] as? [String: [String: String]]
         return dictionaries?[locale]?[source] ?? source
     }
@@ -309,7 +309,7 @@ final class DisplayPlugins {
         guard let record = records[id] else {
             return Self.statusScene(text("missing"), text("missing.hint"))
         }
-        let title = Self.localized(record.info["viewLabel"] as? String ?? "Plugin", info: record.info)
+        let title = Self.localized(record.info["viewLabel"] as? String ?? "Plugin", info: record.info, locale: language)
         if record.error != nil { return Self.statusScene(title, text("unavailable")) }
         guard let scene = record.scenes[layout], let fetched = record.fetchedAt else {
             return Self.statusScene(title, text("loading"))

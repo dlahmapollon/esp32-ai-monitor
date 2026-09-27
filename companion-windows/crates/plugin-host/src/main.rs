@@ -120,8 +120,10 @@ fn run() -> Result<Value, String> {
     let locale = if args.last().is_some_and(|arg| arg.starts_with("--locale=")) {
         let value = args.pop().unwrap();
         let locale = value.trim_start_matches("--locale=");
-        if !matches!(locale, "de" | "en") {
-            return Err("unsupported plugin locale".into());
+        if locale.is_empty() || locale.len() > 16 || !locale.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'
+        }) {
+            return Err("invalid plugin locale".into());
         }
         locale.to_owned()
     } else {

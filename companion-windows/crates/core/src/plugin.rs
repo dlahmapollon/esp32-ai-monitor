@@ -605,6 +605,9 @@ fn validate_template_node(
         for name in bindings {
             value = value.replace(&format!("{{{{{name}}}}}"), "X");
         }
+        if value.contains("{{") {
+            return Err("unknown text binding".into());
+        }
         *text = Value::String(value);
     }
     validate_wire_node(&sample)
@@ -724,6 +727,7 @@ mod tests {
             BTreeMap::from([
                 ("English label".into(), "Deutscher Text".into()),
                 ("Active".into(), "Aktiv".into()),
+                ("Level {{level}}%".into(), "Stand {{level}}%".into()),
             ]),
         );
         let response: Value = serde_json::from_str(include_str!(
@@ -736,6 +740,7 @@ mod tests {
             "type":"text", "x":0, "y":0, "w":200, "h":30,
             "color":16777215, "text":"English label"
         }));
+        plugin.validate().unwrap();
         let de = plugin
             .scene_localized(SceneLayout::Portrait, &response, &settings, "de")
             .unwrap();
@@ -753,6 +758,11 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
+            .any(|n| n["text"] == "Stand 62%"));
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
             .any(|n| n["type"] == "circle"));
         let fr = plugin
             .scene_localized(SceneLayout::Portrait, &response, &settings, "fr")
@@ -762,6 +772,11 @@ mod tests {
             .unwrap()
             .iter()
             .any(|n| n["text"] == "English label"));
+        plugin.localizations.get_mut("de").unwrap().insert(
+            "Level {{level}}%".into(),
+            "Stand {{unknown}}%".into(),
+        );
+        assert!(plugin.validate().is_err());
     }
 
     #[test]
