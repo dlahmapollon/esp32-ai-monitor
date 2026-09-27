@@ -42,6 +42,28 @@ pub fn scene_envelope(
     Ok(payload)
 }
 
+/// Statustexte für Plugin-Fenster in der Sprache des Geräteprofils. Die
+/// Firmware nimmt in Szenen nur druckbares ASCII an, deshalb stehen die
+/// deutschen Texte ohne Umlaute.
+pub fn status_text(key: &str, language: crate::protocol::Language) -> &'static str {
+    use crate::protocol::Language;
+    match (language, key) {
+        (Language::De, "missing") => "Plugin fehlt",
+        (Language::De, "missing.hint") => "Plugin in den Einstellungen installieren",
+        (Language::De, "unavailable") => "Daten nicht abrufbar",
+        (Language::De, "loading") => "Lade Daten ...",
+        (Language::De, "stale") => "Daten veraltet - warte auf Update",
+        (Language::De, "render") => "Plugin-Daten nicht darstellbar",
+        (Language::En, "missing") => "Plugin missing",
+        (Language::En, "missing.hint") => "Install this plugin in Settings",
+        (Language::En, "unavailable") => "Data unavailable",
+        (Language::En, "loading") => "Loading data...",
+        (Language::En, "stale") => "Data stale - waiting for update",
+        (Language::En, "render") => "Cannot render plugin data",
+        _ => "",
+    }
+}
+
 pub fn status_scene(title: &str, message: &str) -> Value {
     let title = if printable(title, 40) {
         title
@@ -569,6 +591,19 @@ fn validate_wire_node(node: &Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn status_texts_fit_firmware_limits() {
+        use crate::protocol::Language;
+        for language in [Language::De, Language::En] {
+            for key in ["missing", "missing.hint", "unavailable", "loading", "stale", "render"] {
+                let text = status_text(key, language);
+                assert!(!text.is_empty(), "{key} fehlt");
+                // Titel dürfen 40, Meldungen 60 druckbare ASCII-Zeichen haben.
+                assert!(printable(text, if key == "missing" { 40 } else { 60 }), "{key}: {text}");
+            }
+        }
+    }
 
     fn fixture() -> Manifest {
         parse_manifest(include_bytes!("../../../../tests/fixtures/display-plugin/plugin.json"))

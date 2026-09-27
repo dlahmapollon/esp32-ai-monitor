@@ -2714,7 +2714,8 @@ class UsageMonitor {
         } else {
             layout = "landscape"
         }
-        let scene = DisplayPlugins.shared.scene(for: id, layout: layout)
+        let scene = DisplayPlugins.shared.scene(for: id, layout: layout,
+                                                language: Settings.shared.language)
         let envelope: [String: Any] = [
             "schemaVersion": 2,
             "frameId": frameId,
