@@ -1,11 +1,14 @@
 #include "localization.h"
 
+#include <stdio.h>
+#include <string.h>
+
 uint8_t g_language = LANG_DE;  // Default: German
 
 static const char* strings_de[] = {
     "Sitzung",              // STR_SESSION
     "Woche",                // STR_WEEKLY
-    "Reset in %s",          // STR_RESETS_IN
+    "Erneuert in %s",       // STR_RESETS_IN
     "Aktualisiert %s",      // STR_UPDATED
     "Verbinde...",           // STR_CONNECTING
     "AI Monitor",            // STR_AI_MONITOR
@@ -70,4 +73,48 @@ const char* L(StrId id) {
     if (id < 0 || id >= _STR_COUNT) return "???";
     if (g_language == LANG_EN) return strings_en[id];
     return strings_de[id];
+}
+
+// Feste Titel der Provider-Tabellen (providers.cpp, CodexBarSource.swift,
+// provider.rs). Markennamen wie "Pro", "Flash" oder "Premium" bleiben stehen.
+// Die Montserrat-Schriften der Firmware haben keine Umlaute.
+static const struct { const char *en; const char *de; } ROW_TITLES_DE[] = {
+    { "Session",   "Sitzung" },
+    { "Weekly",    "Woche" },
+    { "Tertiary",  "Weitere" },
+    { "Window",    "Fenster" },
+    { "Model",     "Modell" },
+    { "Quota",     "Kontingent" },
+    { "Daily",     "Tag" },
+    { "Monthly",   "Monat" },
+};
+
+static bool ends_with(const char *s, size_t len, const char *suffix, size_t *stem_len) {
+    const size_t n = strlen(suffix);
+    if (len <= n || strcmp(s + len - n, suffix) != 0) return false;
+    *stem_len = len - n;
+    return true;
+}
+
+const char* L_row_title(const char *title) {
+    static char buf[24];
+    if (title == nullptr || g_language != LANG_DE) return title;
+
+    for (const auto &t : ROW_TITLES_DE) {
+        if (strcmp(title, t.en) == 0) return t.de;
+    }
+
+    // Zusatzfenster aus CodexBar: "Fable only" -> "nur Fable",
+    // "Fable weekly" -> "Fable Woche".
+    const size_t len = strlen(title);
+    size_t stem = 0;
+    if (ends_with(title, len, " only", &stem)) {
+        snprintf(buf, sizeof(buf), "nur %.*s", (int)stem, title);
+        return buf;
+    }
+    if (ends_with(title, len, " weekly", &stem)) {
+        snprintf(buf, sizeof(buf), "%.*s Woche", (int)stem, title);
+        return buf;
+    }
+    return title;
 }
