@@ -41,6 +41,9 @@
 #include <time.h>
 
 LV_FONT_DECLARE(font_standby_clock_76);
+#if defined(BOARD_S3_4848)
+LV_FONT_DECLARE(font_standby_clock_160);
+#endif
 
 // ============================================================
 // Widget references (created once, updated in-place)
@@ -98,7 +101,7 @@ static lv_obj_t *ag_reset[AG_ROW_COUNT] = {nullptr, nullptr, nullptr};
 static lv_obj_t *divider_middle = nullptr;
 
 // ============================================================
-// Quadratisches Panel: Tempo-Marken, Hero-Layout und grosse Zeilen
+// Tempo-Marken (alle Panels), Hero-Layout und grosse Zeilen (quadratisch)
 // ============================================================
 // Tempo-Marke: zeigt, wie viel vom Zeitfenster schon vergangen ist. Auf
 // einem Balken ein senkrechter Strich, auf einem Ring ein radialer.
@@ -233,6 +236,14 @@ static void on_tap_release(lv_event_t *e) {
     else serial_next_view();
 }
 
+// Uhr und Standby: auf dem quadratischen Panel die grosse Ziffernschrift.
+static const lv_font_t *clock_font() {
+#if defined(BOARD_S3_4848)
+    if (square_layout) return &font_standby_clock_160;
+#endif
+    return &font_standby_clock_76;
+}
+
 static void update_plugin_view() {
     uint8_t index = serial_active_view();
     const PluginSceneSlot *slot = plugin_scene_get(index);
@@ -282,14 +293,16 @@ static void update_clock_view() {
         lv_obj_set_width(clock_time, SCREEN_WIDTH);
         lv_obj_set_style_text_align(clock_time, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_set_style_text_color(clock_time, UI_COLOR_TEXT, LV_PART_MAIN);
-        lv_obj_set_style_text_font(clock_time, &font_standby_clock_76, LV_PART_MAIN);
-        lv_obj_align(clock_time, LV_ALIGN_CENTER, 0, -15);
+        lv_obj_set_style_text_font(clock_time, clock_font(), LV_PART_MAIN);
+        lv_obj_set_style_text_letter_space(clock_time, square_layout ? 4 : 0, LV_PART_MAIN);
+        lv_obj_align(clock_time, LV_ALIGN_CENTER, 0, square_layout ? -30 : -15);
         clock_date = lv_label_create(clock_overlay);
         lv_obj_set_width(clock_date, SCREEN_WIDTH);
         lv_obj_set_style_text_align(clock_date, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_obj_set_style_text_color(clock_date, UI_COLOR_TEXT_SEC, LV_PART_MAIN);
-        lv_obj_set_style_text_font(clock_date, &lv_font_montserrat_20, LV_PART_MAIN);
-        lv_obj_align(clock_date, LV_ALIGN_CENTER, 0, 55);
+        lv_obj_set_style_text_font(clock_date, square_layout ? &lv_font_montserrat_36 : &lv_font_montserrat_20,
+                                   LV_PART_MAIN);
+        lv_obj_align(clock_date, LV_ALIGN_CENTER, 0, square_layout ? 80 : 55);
     }
     char time_buf[6] = "--:--";
     char date_buf[20] = "";
@@ -376,15 +389,16 @@ static void show_standby_overlay() {
     standby_wifi = lv_label_create(standby_overlay);
     lv_label_set_text(standby_wifi, LV_SYMBOL_DUMMY);
     lv_obj_set_style_text_color(standby_wifi, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(standby_wifi, &lv_font_montserrat_14, LV_PART_MAIN);
-    lv_obj_set_pos(standby_wifi, 8, 11);
+    lv_obj_set_style_text_font(standby_wifi, square_layout ? &lv_font_montserrat_20 : &lv_font_montserrat_14,
+                               LV_PART_MAIN);
+    lv_obj_set_pos(standby_wifi, 8, status_icon_y);
 
     standby_clock = lv_label_create(standby_overlay);
     lv_obj_set_width(standby_clock, SCREEN_WIDTH);
     lv_obj_set_style_text_align(standby_clock, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_obj_set_style_text_color(standby_clock, lv_color_white(), LV_PART_MAIN);
-    lv_obj_set_style_text_font(standby_clock, &font_standby_clock_76, LV_PART_MAIN);
-    lv_obj_set_style_text_letter_space(standby_clock, 2, LV_PART_MAIN);
+    lv_obj_set_style_text_font(standby_clock, clock_font(), LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(standby_clock, square_layout ? 4 : 2, LV_PART_MAIN);
     lv_label_set_long_mode(standby_clock, LV_LABEL_LONG_CLIP);
     update_standby_clock();
     lv_obj_align(standby_clock, LV_ALIGN_CENTER, 0, 0);
@@ -394,8 +408,15 @@ static void show_standby_overlay() {
 }
 
 // ============================================================
-// Tempo-Marke und Warnfarbe (nur quadratisches Layout)
+// Tempo-Marke (alle Panels) und Warnfarbe (nur quadratisches Layout)
 // ============================================================
+// Wie weit die Marke ueber den Balken hinausragt. Die duennen CYD-Zeilen
+// haben den Titel direkt darueber, dort nur knapp.
+static int16_t bar_tick_overhang(int16_t bar_h) {
+    if (square_layout) return 5;
+    return bar_h <= 8 ? 2 : 3;
+}
+
 static void pace_tick_create_bar(PaceTick &t, lv_obj_t *parent,
                                  int16_t x, int16_t y, int16_t w, int16_t h) {
     t = {};
@@ -405,7 +426,8 @@ static void pace_tick_create_bar(PaceTick &t, lv_obj_t *parent,
     t.thickness = h;
     t.obj = lv_obj_create(parent);
     lv_obj_remove_style_all(t.obj);
-    lv_obj_set_size(t.obj, 3, h + 10);
+    // Auf den kleinen CYD-Panels schmaler und kuerzer
+    lv_obj_set_size(t.obj, square_layout ? 3 : 2, h + 2 * bar_tick_overhang(h));
     lv_obj_set_style_bg_color(t.obj, UI_COLOR_TEXT, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(t.obj, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(t.obj, 1, LV_PART_MAIN);
@@ -422,7 +444,7 @@ static void pace_tick_create_ring(PaceTick &t, lv_obj_t *parent,
     t.thickness = ring_w;
     t.obj = lv_line_create(parent);
     lv_obj_set_style_line_color(t.obj, UI_COLOR_TEXT, LV_PART_MAIN);
-    lv_obj_set_style_line_width(t.obj, 4, LV_PART_MAIN);
+    lv_obj_set_style_line_width(t.obj, square_layout ? 4 : 3, LV_PART_MAIN);
     lv_obj_set_pos(t.obj, 0, 0);
     lv_obj_add_flag(t.obj, LV_OBJ_FLAG_HIDDEN);
 }
@@ -440,15 +462,16 @@ static void pace_tick_set(PaceTick &t, float pos) {
         const float a = (270.0f + pos * 360.0f) * 3.14159265f / 180.0f;
         const float c = cosf(a);
         const float sn = sinf(a);
-        const float r_in = (float)(t.len - t.thickness - 4);
-        const float r_out = (float)(t.len + 4);
+        const float over = square_layout ? 4.0f : 3.0f;
+        const float r_in = (float)(t.len - t.thickness) - over;
+        const float r_out = (float)t.len + over;
         t.pts[0].x = (lv_value_precise_t)(t.x + c * r_in);
         t.pts[0].y = (lv_value_precise_t)(t.y + sn * r_in);
         t.pts[1].x = (lv_value_precise_t)(t.x + c * r_out);
         t.pts[1].y = (lv_value_precise_t)(t.y + sn * r_out);
         lv_line_set_points(t.obj, t.pts, 2);
     } else {
-        lv_obj_set_pos(t.obj, t.x + (int16_t)(pos * t.len + 0.5f) - 1, t.y - 5);
+        lv_obj_set_pos(t.obj, t.x + (int16_t)(pos * t.len + 0.5f) - 1, t.y - bar_tick_overhang(t.thickness));
     }
     lv_obj_clear_flag(t.obj, LV_OBJ_FLAG_HIDDEN);
 }
@@ -544,7 +567,8 @@ static int16_t create_usage_block(
     lv_obj_t **out_title_lbl,
     lv_obj_t **out_pct_lbl,
     lv_obj_t **out_bar,
-    lv_obj_t **out_reset_lbl
+    lv_obj_t **out_reset_lbl,
+    PaceTick *out_tick
 ) {
     int16_t sw = SCREEN_WIDTH;
     int16_t bar_w = sw - 24;
@@ -576,6 +600,7 @@ static int16_t create_usage_block(
     lv_obj_set_style_bg_color(*out_bar, ui_bar_color(PROVIDER_CLAUDE), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(*out_bar, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(*out_bar, 6, LV_PART_INDICATOR);
+    pace_tick_create_bar(*out_tick, parent, 12, y_start + 76, bar_w, 12);
 
     *out_reset_lbl = lv_label_create(parent);
     lv_label_set_text(*out_reset_lbl, "Resets in --");
@@ -603,7 +628,8 @@ static void create_arc_block(
     lv_obj_t **out_title_lbl,
     lv_obj_t **out_arc,
     lv_obj_t **out_pct_lbl,
-    lv_obj_t **out_reset_lbl
+    lv_obj_t **out_reset_lbl,
+    PaceTick *out_tick
 ) {
     const int16_t title_h = 16;
     const int16_t reset_h = 16;
@@ -641,6 +667,7 @@ static void create_arc_block(
     lv_obj_set_style_arc_width(*out_arc, 14, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(*out_arc, ui_bar_color(PROVIDER_CLAUDE), LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(*out_arc, LV_OPA_COVER, LV_PART_INDICATOR);
+    pace_tick_create_ring(*out_tick, parent, cx, arc_y + arc_diameter / 2, arc_diameter / 2, 14);
 
     // Percent in arc centre
     *out_pct_lbl = lv_label_create(parent);
@@ -824,6 +851,7 @@ static void create_antigravity_row(
     lv_obj_set_style_bg_color(ag_bar[idx], UI_COLOR_ANTIGRAVITY, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(ag_bar[idx], LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(ag_bar[idx], bar_h / 2, LV_PART_INDICATOR);
+    pace_tick_create_bar(ag_tick[idx], parent, x + pad, y + bar_y, bar_w, bar_h);
 
     ag_pct[idx] = lv_label_create(parent);
     lv_label_set_text(ag_pct[idx], "--%");
@@ -1258,13 +1286,13 @@ void ui_dashboard_create() {
         create_arc_block(
             scr_dashboard, L(STR_WEEKLY),
             left_cx, cell_top, cell_w, cell_h, arc_d,
-            &lbl_weekly_title, &arc_weekly, &lbl_weekly_pct, &lbl_weekly_reset
+            &lbl_weekly_title, &arc_weekly, &lbl_weekly_pct, &lbl_weekly_reset, &weekly_tick
         );
 
         create_arc_block(
             scr_dashboard, L(STR_SESSION),
             right_cx, cell_top, cell_w, cell_h, arc_d,
-            &lbl_session_title, &arc_session, &lbl_session_pct, &lbl_session_reset
+            &lbl_session_title, &arc_session, &lbl_session_pct, &lbl_session_reset, &session_tick
         );
 
         // ---- Landscape Antigravity: three compact rows ----
@@ -1296,7 +1324,7 @@ void ui_dashboard_create() {
         create_usage_block(
             scr_dashboard, L(STR_WEEKLY),
             weekly_y,
-            &lbl_weekly_title, &lbl_weekly_pct, &bar_weekly, &lbl_weekly_reset
+            &lbl_weekly_title, &lbl_weekly_pct, &bar_weekly, &lbl_weekly_reset, &weekly_tick
         );
 
         divider_middle = ui_create_divider(scr_dashboard, middle_divider_y);
@@ -1304,7 +1332,7 @@ void ui_dashboard_create() {
         create_usage_block(
             scr_dashboard, L(STR_SESSION),
             session_y,
-            &lbl_session_title, &lbl_session_pct, &bar_session, &lbl_session_reset
+            &lbl_session_title, &lbl_session_pct, &bar_session, &lbl_session_reset, &session_tick
         );
 
         // ---- Portrait Antigravity: three rows ----
@@ -1337,7 +1365,7 @@ void ui_dashboard_create() {
         create_arc_block(
             scr_dashboard, L(STR_WEEKLY),
             sw / 2, header_h + 2, sw - 24, sh - header_h - 2, 140,
-            &lbl_single_title, &arc_single, &lbl_single_pct, &lbl_single_reset
+            &lbl_single_title, &arc_single, &lbl_single_pct, &lbl_single_reset, &single_tick
         );
     }
     set_single_widgets_visible(false);
@@ -1652,9 +1680,9 @@ void ui_dashboard_update(const MonitorState &state) {
                     if (state.usage.row_reset_epoch[i] > 0 && used < sizeof(buf)) {
                         snprintf(buf + used, sizeof(buf) - used, "  " LV_SYMBOL_BULLET "  %s", when);
                     }
-                    pace_tick_set(ag_tick[i], pace_position(window_elapsed(
-                        state.usage.row_reset_epoch[i], state.usage.row_window_minutes[i]), rem));
                 }
+                pace_tick_set(ag_tick[i], pace_position(window_elapsed(
+                    state.usage.row_reset_epoch[i], state.usage.row_window_minutes[i]), rem));
                 lv_label_set_text(ag_reset[i], buf);
             }
         } else {
