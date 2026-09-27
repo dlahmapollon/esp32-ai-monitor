@@ -368,6 +368,45 @@ void format_reset_date(time_t reset_epoch, char *buf, size_t len) {
 }
 
 // ============================================================
+// Short reset time: "16:45" (heute) / "Sa. 16:45"
+//                   "4:45 PM" (today) / "Sat 4:45 PM"
+// ============================================================
+void format_reset_short(time_t reset_epoch, char *buf, size_t len) {
+    if (reset_epoch <= 0) {
+        snprintf(buf, len, "--");
+        return;
+    }
+
+    struct tm reset_tm;
+    struct tm now_tm;
+    time_t now = time(nullptr);
+    localtime_r(&reset_epoch, &reset_tm);
+    localtime_r(&now, &now_tm);
+    const bool today = reset_tm.tm_yday == now_tm.tm_yday && reset_tm.tm_year == now_tm.tm_year;
+
+    if (g_language == LANG_DE) {
+        static const char* tage[] = { "So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa." };
+        if (today) {
+            snprintf(buf, len, "%02d:%02d", reset_tm.tm_hour, reset_tm.tm_min);
+        } else {
+            snprintf(buf, len, "%s %02d:%02d", tage[reset_tm.tm_wday],
+                     reset_tm.tm_hour, reset_tm.tm_min);
+        }
+    } else {
+        static const char* days[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+        int hour12 = reset_tm.tm_hour % 12;
+        if (hour12 == 0) hour12 = 12;
+        const char *ampm = (reset_tm.tm_hour < 12) ? "AM" : "PM";
+        if (today) {
+            snprintf(buf, len, "%d:%02d %s", hour12, reset_tm.tm_min, ampm);
+        } else {
+            snprintf(buf, len, "%s %d:%02d %s", days[reset_tm.tm_wday],
+                     hour12, reset_tm.tm_min, ampm);
+        }
+    }
+}
+
+// ============================================================
 // Usage-indicator color based on provider (fixed brand colors)
 // ============================================================
 lv_color_t ui_bar_color(uint8_t provider) {

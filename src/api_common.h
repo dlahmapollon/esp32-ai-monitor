@@ -65,6 +65,15 @@ struct UsageData {
     char    row_resets_at[3][32];    // ISO 8601
     time_t  row_reset_epoch[3];
 
+    // Fensterlaengen in Minuten (`windowMinutes`), 0 = unbekannt. Daraus
+    // berechnet das quadratische Layout die Tempo-Marke.
+    uint32_t five_hour_window_minutes;
+    uint32_t seven_day_window_minutes;
+    uint32_t row_window_minutes[3];
+
+    // Der Host zeigt verbleibende statt verbrauchte Prozent (`percentMode`).
+    bool     shows_remaining;
+
     bool          valid;             // true if data was fetched successfully
     unsigned long last_fetch;        // millis() of last successful fetch
     char          error[64];         // Error message if !valid
@@ -122,10 +131,13 @@ inline void usage_data_clear(UsageData &d) {
     d.five_hour_utilization  = 0.0f;
     d.five_hour_resets_at[0] = '\0';
     d.five_hour_reset_epoch  = 0;
+    d.five_hour_window_minutes = 0;
 
     d.seven_day_utilization  = 0.0f;
     d.seven_day_resets_at[0] = '\0';
     d.seven_day_reset_epoch  = 0;
+    d.seven_day_window_minutes = 0;
+    d.shows_remaining = false;
 
     d.has_extra_usage      = false;
     d.extra_utilization    = 0.0f;
@@ -138,6 +150,7 @@ inline void usage_data_clear(UsageData &d) {
         d.row_title[i][0] = '\0';
         d.row_resets_at[i][0] = '\0';
         d.row_reset_epoch[i] = 0;
+        d.row_window_minutes[i] = 0;
     }
 
     d.credits_state        = CREDITS_UNKNOWN;

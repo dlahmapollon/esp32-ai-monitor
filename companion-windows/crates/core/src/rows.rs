@@ -18,6 +18,16 @@ pub enum PercentMode {
     Remaining,
 }
 
+impl PercentMode {
+    /// Wert für das Feld `usage.percentMode` im Usage-Frame.
+    pub fn wire_key(self) -> &'static str {
+        match self {
+            PercentMode::Used => "used",
+            PercentMode::Remaining => "remaining",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Row {

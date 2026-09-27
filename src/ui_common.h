@@ -52,6 +52,10 @@ void format_countdown_long(time_t reset_epoch, char *buf, size_t len);
 // Format reset as target date: "Freitag, 18:00 Uhr" / "Friday, 6:00 PM"
 void format_reset_date(time_t reset_epoch, char *buf, size_t len);
 
+// Format reset as short target time: "16:45" (heute) / "Sa. 16:45"
+// (EN: "4:45 PM" / "Sat 4:45 PM")
+void format_reset_short(time_t reset_epoch, char *buf, size_t len);
+
 // Format reset as compact countdown, abbreviated, no prefix:
 //   "4 Tg. 13 Std." / "1 Std. 46 Min." / "46 Min." / "< 1 Min."
 // (EN fallback: "4d 13h" / "1h 46m" / "46m" / "< 1m")

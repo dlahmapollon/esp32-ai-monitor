@@ -3525,9 +3525,12 @@ class UsageMonitor {
         // wurden fehlende Fenster als 0 % (im Restmodus sogar 100 %) serialisiert.
         // Besonders beim Codex-OAuth-Fallback sah das wie ein echter Stand aus,
         // obwohl lediglich kein Session-Fenster vorhanden war.
+        // `percentMode` sagt dem Gerät, ob `usedPercent` verbraucht oder
+        // verbleibend meint; die Tempo-Marke auf dem S3 läuft danach.
         var usagePayload: [String: Any] = [
             "rows": rowsPayload,
-            "loginMethod": loginMethodLabel
+            "loginMethod": loginMethodLabel,
+            "percentMode": percentMode.rawValue
         ]
         if entry.primary != nil {
             usagePayload["primary"] = [

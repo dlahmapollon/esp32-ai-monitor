@@ -29,6 +29,9 @@ static const char* strings_de[] = {
     "USB verbunden...",      // STR_USB_CONNECTED
     "Initialisiere...",      // STR_INITIALIZING
     "vor",                   // STR_AGO
+    "im Plan",               // STR_ON_PACE
+    "zu schnell",            // STR_TOO_FAST
+    "%d %% der Zeit vergangen", // STR_TIME_ELAPSED
 };
 
 static const char* strings_en[] = {
@@ -58,6 +61,9 @@ static const char* strings_en[] = {
     "USB connected...",      // STR_USB_CONNECTED
     "Initializing...",       // STR_INITIALIZING
     "ago",                   // STR_AGO
+    "On pace",               // STR_ON_PACE
+    "Too fast",              // STR_TOO_FAST
+    "%d%% of time elapsed",  // STR_TIME_ELAPSED
 };
 
 const char* L(StrId id) {

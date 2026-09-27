@@ -89,6 +89,9 @@ pub fn usage_envelope(entry: &Entry, mode: PercentMode, ctx: &FrameContext, fram
     let mut usage = serde_json::Map::new();
     usage.insert("rows".into(), Value::Array(rows));
     usage.insert("loginMethod".into(), Value::String(provider.login_label().into()));
+    // Sagt dem Gerät, ob `usedPercent` verbraucht oder verbleibend meint;
+    // die Tempo-Marke auf dem S3 läuft danach.
+    usage.insert("percentMode".into(), Value::String(mode.wire_key().into()));
     for (idx, key) in ["primary", "secondary", "tertiary"].iter().enumerate() {
         if let Some(w) = entry.windows()[idx] {
             usage.insert((*key).into(), window_value(w, idx, provider, mode));
@@ -235,6 +238,7 @@ mod tests {
         assert_eq!(d["fetching"], false);
         let u = &d["usage"];
         assert_eq!(u["loginMethod"], "Claude Max");
+        assert_eq!(u["percentMode"], "used");
         assert_eq!(u["rows"].as_array().unwrap().len(), 3);
         assert_eq!(u["rows"][0]["title"], "Session");
         assert_eq!(u["rows"][0]["resetsAt"], "2026-09-10T17:00:00Z");
@@ -264,6 +268,7 @@ mod tests {
         assert_eq!(u["primary"]["windowMinutes"], 300, "Default für Codex Index 0");
         assert_eq!(u["primary"]["resetsAt"], "");
         assert_eq!(u["rows"][0]["usedPercent"], 70);
+        assert_eq!(u["percentMode"], "remaining");
     }
 
     #[test]
