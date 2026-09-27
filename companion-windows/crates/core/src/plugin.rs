@@ -413,11 +413,11 @@ impl Manifest {
                         .map(str::to_owned)
                         .unwrap_or_else(|| v.to_string())
                 });
-                let base = key
-                    .as_ref()
-                    .and_then(|key| binding.map.get(key))
-                    .unwrap_or(&binding.fallback);
-                format!("{}{}", self.localized(locale, base), binding.suffix)
+                if let Some(base) = key.as_ref().and_then(|key| binding.map.get(key)) {
+                    format!("{}{}", self.localized(locale, base), binding.suffix)
+                } else {
+                    self.localized(locale, &binding.fallback).to_owned()
+                }
             } else {
                 format_binding(binding, source)
             };
@@ -777,6 +777,22 @@ mod tests {
             "Stand {{unknown}}%".into(),
         );
         assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn localized_map_fallback_keeps_existing_suffix_behavior() {
+        let mut plugin = fixture();
+        let state = plugin.bindings.iter_mut().find(|b| b.name == "state").unwrap();
+        state.suffix = "!".into();
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Unknown".into(), "Unbekannt".into()),
+        ]));
+        let mut response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        response["metric"]["state"] = json!(99);
+        let scene = plugin.scene_localized(SceneLayout::Portrait, &response, &plugin.default_settings(), "de").unwrap();
+        assert!(scene["nodes"].as_array().unwrap().iter().any(|n| n["text"] == "Unbekannt"));
     }
 
     #[test]
