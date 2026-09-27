@@ -143,6 +143,7 @@ pub fn run() {
             commands::open_settings,
             commands::get_initial_page,
             commands::get_connection,
+            commands::wifi_command,
             commands::list_ports,
             commands::set_manual_port,
             commands::get_devices,

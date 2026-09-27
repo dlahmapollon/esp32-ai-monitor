@@ -4,7 +4,7 @@ use crate::flash::{self, FlashOutcome};
 use crate::plugins::{self, PluginInfo, PluginPreview};
 use crate::poll;
 use crate::registry;
-use crate::serial_service::{self, ConnectionSnapshot, Job};
+use crate::serial_service::{self, ConnectionSnapshot, Job, WifiAction};
 use crate::settings::{Settings, ViewContent, ViewMode};
 use crate::state::{current_snapshot, AppState};
 use crate::timezone::{self, TimeZoneOption};
@@ -18,6 +18,8 @@ use aimonitor_serial::PortCandidate;
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::{Map, Value};
+use std::sync::mpsc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 
@@ -285,6 +287,24 @@ pub fn open_settings(app: AppHandle) {
 #[tauri::command]
 pub fn get_connection(state: State<'_, AppState>) -> ConnectionSnapshot {
     state.connection.lock().unwrap().clone()
+}
+
+#[tauri::command]
+pub async fn wifi_command(app: AppHandle, action: String, ssid: Option<String>, password: Option<String>) -> Result<Value, String> {
+    let action = match action.as_str() {
+        "status" => WifiAction::Status,
+        "scan" => WifiAction::Scan,
+        "set" => WifiAction::Set { ssid: ssid.unwrap_or_default(), password: password.unwrap_or_default() },
+        "forget" => WifiAction::Forget,
+        _ => return Err("Unbekanntes WLAN-Kommando".into()),
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let (tx, rx) = mpsc::channel();
+        app.state::<AppState>().serial.send(Job::Wifi { action, reply: tx })
+            .map_err(|_| "Serielle Verbindung nicht verfügbar".to_string())?;
+        rx.recv_timeout(Duration::from_secs(20))
+            .map_err(|_| "WLAN-Anfrage abgelaufen".to_string())?
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

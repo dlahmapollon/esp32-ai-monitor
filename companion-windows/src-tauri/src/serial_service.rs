@@ -28,7 +28,7 @@ use aimonitor_core::{DeviceInfo, DeviceProfile, Snapshot};
 use aimonitor_serial::{list_ports, ports::choose_port, FrameReceipt, Link, LinkError};
 use chrono::{DateTime, Local, Utc};
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::VecDeque;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
@@ -55,6 +55,7 @@ pub enum Job {
     Resend,
     ConfigureViews,
     SendDiagnostic,
+    Wifi { action: WifiAction, reply: Sender<Result<Value, String>> },
     /// Nur die geänderten Werte sind `Some`; das Profil selbst liegt in der Registry.
     ApplyProfile {
         theme: Option<ThemeSetting>,
@@ -80,6 +81,14 @@ pub enum Job {
     Resume {
         diagnostic_after_connect: bool,
     },
+}
+
+#[derive(Debug)]
+pub enum WifiAction {
+    Status,
+    Scan,
+    Set { ssid: String, password: String },
+    Forget,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
@@ -1018,6 +1027,10 @@ impl Service {
     /// Gibt `false` zurück, wenn der Thread enden soll.
     fn handle(&mut self, job: Job) -> bool {
         match job {
+            Job::Wifi { action, reply } => {
+                let result = self.wifi_command(action);
+                let _ = reply.send(result);
+            }
             Job::SetManualPort(port) => {
                 if self.manual_port != port {
                     self.log_event(match &port {
@@ -1125,6 +1138,38 @@ impl Service {
             }
         }
         true
+    }
+
+    fn wifi_command(&mut self, action: WifiAction) -> Result<Value, String> {
+        if !matches!(self.state, LinkState::Connected(_)) {
+            return Err("Kein Display verbunden".into());
+        }
+        let (line, expected, timeout, label) = match action {
+            WifiAction::Status => (Command::wifi_status(), "wifi_status", Duration::from_secs(4), "WLAN-Status"),
+            WifiAction::Scan => (Command::wifi_scan(), "wifi_scan", Duration::from_secs(18), "WLAN-Scan"),
+            WifiAction::Set { ssid, password } => {
+                if ssid.is_empty() { return Err("SSID fehlt".into()); }
+                (Command::wifi_set(&ssid, &password), "wifi_status", Duration::from_secs(15), "WLAN verbinden")
+            }
+            WifiAction::Forget => (Command::wifi_forget(), "wifi_status", Duration::from_secs(5), "WLAN vergessen"),
+        };
+        self.log_event(format!("-> {label}"));
+        let result = self.link.as_mut().ok_or("Kein Port offen")?
+            .command_with_response(&line, expected, timeout);
+        self.absorb_link_log();
+        match result {
+            Ok(Some(aimonitor_core::protocol::DeviceMessage::WifiStatus(value))) |
+            Ok(Some(aimonitor_core::protocol::DeviceMessage::WifiScan(value))) => {
+                self.publish();
+                Ok(value)
+            }
+            Ok(_) => { self.publish(); Err(format!("Keine Antwort auf {label}")) }
+            Err(e) => {
+                let message = e.to_string();
+                self.disconnect("WLAN-Kommando: Portfehler");
+                Err(message)
+            }
+        }
     }
 }
 

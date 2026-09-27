@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listPorts, sendDiagnosticFrame, setManualPort, type ConnectionSnapshot, type PortCandidate } from "../api";
+import { listPorts, sendDiagnosticFrame, setManualPort, wifiForget, wifiScan, wifiSet, wifiStatus, type ConnectionSnapshot, type PortCandidate, type WifiNetwork, type WifiStatus } from "../api";
 import { formatDuration } from "../format";
 import type { Translate } from "../i18n";
 
@@ -23,6 +23,12 @@ function formatBytes(n: number | null): string {
 export default function Connection({ t, now, connection }: Props) {
   const [ports, setPorts] = useState<PortCandidate[]>([]);
   const [sent, setSent] = useState(false);
+  const [networks, setNetworks] = useState<WifiNetwork[]>([]);
+  const [selectedSsid, setSelectedSsid] = useState("");
+  const [password, setPassword] = useState("");
+  const [wifi, setWifi] = useState<WifiStatus | null>(null);
+  const [wifiBusy, setWifiBusy] = useState(false);
+  const [wifiError, setWifiError] = useState("");
 
   const loadPorts = async () => {
     try {
@@ -35,6 +41,18 @@ export default function Connection({ t, now, connection }: Props) {
   // Ports beim Öffnen und bei jeder Zustandsänderung neu lesen (Hotplug).
   useEffect(() => {
     loadPorts();
+  }, [connection?.state, connection?.port]);
+
+  useEffect(() => {
+    if (connection?.state !== "connected") {
+      setWifi(null);
+      setNetworks([]);
+      return;
+    }
+    let active = true;
+    wifiStatus().then((result) => { if (active) setWifi(result); })
+      .catch((error) => { if (active) setWifiError(String(error)); });
+    return () => { active = false; };
   }, [connection?.state, connection?.port]);
 
   const state = connection?.state ?? "disconnected";
@@ -52,6 +70,33 @@ export default function Connection({ t, now, connection }: Props) {
     await sendDiagnosticFrame();
     setSent(true);
     window.setTimeout(() => setSent(false), 2500);
+  };
+
+  const runWifi = async (action: "scan" | "set" | "forget" | "status") => {
+    setWifiBusy(true);
+    setWifiError("");
+    try {
+      if (action === "scan") {
+        const result = await wifiScan();
+        const unique = result.networks.filter((network, index, all) => network.ssid && all.findIndex((item) => item.ssid === network.ssid) === index);
+        setNetworks(unique);
+        setSelectedSsid(unique[0]?.ssid ?? "");
+        setWifi(await wifiStatus());
+      } else if (action === "set") {
+        if (!selectedSsid) { setWifiError(t("conn.wifi.pick")); return; }
+        try { setWifi(await wifiSet(selectedSsid, password)); }
+        finally { setPassword(""); }
+      } else if (action === "forget") {
+        setWifi(await wifiForget());
+        setPassword("");
+      } else {
+        setWifi(await wifiStatus());
+      }
+    } catch (error) {
+      setWifiError(String(error));
+    } finally {
+      setWifiBusy(false);
+    }
   };
 
   const receiptText = (() => {
@@ -94,6 +139,25 @@ export default function Connection({ t, now, connection }: Props) {
           {t("conn.port.active")}: <span className="mono">{connection.port}</span>
         </p>
       )}
+
+      <h2>{t("conn.wifi.title")}</h2>
+      <p className="muted">{state !== "connected" ? t("conn.wifi.needDevice") : !wifi ? t("conn.wifi.unknown") : wifi.connected
+        ? `${wifi.ssid} · ${wifi.ip} · ${wifi.rssi} dBm · ${wifi.timeSynced ? t("conn.wifi.synced") : t("conn.wifi.notSynced")}`
+        : wifi?.configured ? t("conn.wifi.saved", { ssid: wifi.ssid }) : t("conn.wifi.none")}</p>
+      <div className="field-row">
+        <select className="select" value={selectedSsid} onChange={(e) => { setSelectedSsid(e.target.value); setPassword(""); }} disabled={state !== "connected" || wifiBusy || networks.length === 0} aria-label={t("conn.wifi.network")}>
+          {networks.length === 0 && <option value="">{t("conn.wifi.notScanned")}</option>}
+          {networks.map((network) => <option key={network.ssid} value={network.ssid}>{network.ssid} · {network.rssi} dBm{network.secure ? " 🔒" : ""}</option>)}
+        </select>
+        <button type="button" className="btn" disabled={state !== "connected" || wifiBusy} onClick={() => runWifi("scan")}>{t("conn.wifi.scan")}</button>
+      </div>
+      <div className="field-row">
+        <input className="input" type="password" autoComplete="off" placeholder={t("conn.wifi.password")} aria-label={t("conn.wifi.password")} value={password} onChange={(e) => setPassword(e.target.value)} disabled={state !== "connected" || wifiBusy} />
+        <button type="button" className="btn" disabled={state !== "connected" || wifiBusy || !selectedSsid} onClick={() => runWifi("set")}>{t("conn.wifi.connect")}</button>
+        <button type="button" className="btn" disabled={state !== "connected" || wifiBusy || !wifi?.configured} onClick={() => runWifi("forget")}>{t("conn.wifi.forget")}</button>
+      </div>
+      {wifiBusy && <p className="muted">{t("conn.wifi.wait")}</p>}
+      {wifiError && <p className="notice-bad" role="alert">{wifiError}</p>}
 
       <h2>{t("conn.device.title")}</h2>
       {state === "foreignFirmware" && <p className="notice-bad">{t("disp.fw.foreign.detail")}</p>}
