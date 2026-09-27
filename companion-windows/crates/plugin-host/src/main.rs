@@ -2,6 +2,7 @@
 //! executed: the package is a validated declarative manifest.
 
 use aimonitor_core::plugin::{Manifest, SceneLayout};
+use aimonitor_core::protocol::Theme;
 use aimonitor_core::plugin_package::{parse_package, MAX_PACKAGE_BYTES};
 use serde_json::{json, Map, Value};
 use std::env;
@@ -115,7 +116,14 @@ fn download_package(source: &str) -> Result<Vec<u8>, String> {
 }
 
 fn run() -> Result<Value, String> {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
+    let theme = if args.last().is_some_and(|arg| arg.starts_with("--theme=")) {
+        let value = args.pop().unwrap();
+        Theme::parse(value.trim_start_matches("--theme="))
+            .ok_or("invalid plugin theme")?
+    } else {
+        Theme::Dark
+    };
     if args.len() < 3 {
         return Err("usage: aimonitor-plugin-host inspect|render PACKAGE [SETTINGS] [portrait|landscape|square|all] [FIXTURE]".into());
     }
@@ -168,13 +176,13 @@ fn run() -> Result<Value, String> {
             if orientation == "all" {
                 let portrait = package
                     .manifest
-                    .scene(SceneLayout::Portrait, &data, &settings)?;
+                    .scene_with_theme(SceneLayout::Portrait, &data, &settings, theme)?;
                 let landscape = package
                     .manifest
-                    .scene(SceneLayout::Landscape, &data, &settings)?;
+                    .scene_with_theme(SceneLayout::Landscape, &data, &settings, theme)?;
                 let square = package
                     .manifest
-                    .scene(SceneLayout::Square, &data, &settings)?;
+                    .scene_with_theme(SceneLayout::Square, &data, &settings, theme)?;
                 Ok(
                     json!({"scenes": {"portrait": portrait, "landscape": landscape, "square": square}}),
                 )
@@ -184,7 +192,7 @@ fn run() -> Result<Value, String> {
                     "square" => SceneLayout::Square,
                     _ => SceneLayout::Portrait,
                 };
-                let scene = package.manifest.scene(layout, &data, &settings)?;
+                let scene = package.manifest.scene_with_theme(layout, &data, &settings, theme)?;
                 Ok(json!({"scene": scene}))
             }
         }

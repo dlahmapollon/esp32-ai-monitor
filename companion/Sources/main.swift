@@ -2979,6 +2979,7 @@ class UsageMonitor {
         // sofort re-pushen — sonst zeigt das Display bis zum nächsten
         // CodexBar-Tick "--%".
         sendLastUsageSnapshotIfAvailable()
+        DisplayPlugins.shared.refresh(views: Settings.shared.displayViews)
     }
 
     func sendLanguageToESP32() {
