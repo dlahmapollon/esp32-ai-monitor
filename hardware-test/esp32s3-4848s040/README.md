@@ -31,9 +31,36 @@ Der Bildaufbau reißt ab, sobald ins Flash geschrieben wird: Der Zwischenspeiche
 
 Weder `esp_lcd_rgb_panel_restart()` noch eine erneute ST7701-Init-Sequenz holen das Bild zurück, nur ein Neustart. Niedrigerer Pixeltakt und größerer Puffer verzögern das Problem, verhindern es aber nicht.
 
-**Folge für die Firmware:** feste Werte 10 MHz Pixeltakt und 19200 px Bounce Buffer (rund 35 Bilder/s), kein WLAN, und im Betrieb keine Schreibzugriffe ins Flash. Die Einstellungen kommen von der Host-App.
+**Folge für die Firmware (bis 28.09.2026):** feste Werte 10 MHz Pixeltakt und 19200 px Bounce Buffer (rund 35 Bilder/s), kein WLAN, und im Betrieb keine Schreibzugriffe ins Flash. Die Einstellungen kamen von der Host-App. Überholt, siehe unten.
 
-Die Umgebung `4848s040-idf` sollte das Problem an der Wurzel beheben, indem Programmcode ins PSRAM wandert und der Zwischenspeicher nicht mehr abgeschaltet werden muss. Sie scheitert an einer unvollständigen SCons-Installation in PlatformIO (`No module named 'SCons.Tool.FortranCommon'`) und ist nicht weiterverfolgt.
+Die Umgebung `4848s040-idf` sollte das Problem an der Wurzel beheben, indem Programmcode ins PSRAM wandert und der Zwischenspeicher nicht mehr abgeschaltet werden muss. Sie scheiterte zunächst an `No module named 'SCons.Tool.FortranCommon'` und war nicht weiterverfolgt.
+
+## Ergebnis vom 28.09.2026: Ursache behoben
+
+Der SCons-Fehler kommt von der Plattform 55.03.311: Sie tauscht mitten im Build das SCons-Paket aus, beim Linken fehlt dann das Modul. Mit 55.03.312 baut `4848s040-idf` durch. Die Konfiguration stammt aus dem evcc-Garagendisplay (gleiches Board, stabil mit WLAN und OTA):
+
+```ini
+custom_sdkconfig =
+    CONFIG_SPIRAM_XIP_FROM_PSRAM=y          ; Code und Konstanten aus dem PSRAM, Cache bleibt beim Flash-Schreiben an
+    CONFIG_LCD_RGB_ISR_IRAM_SAFE=y          ; Bildausgabe laeuft auch bei gesperrtem Flash weiter
+    CONFIG_LCD_RGB_RESTART_IN_VSYNC=y       ; faengt ein verrutschtes Bild im naechsten Bild wieder
+    CONFIG_GDMA_CTRL_FUNC_IN_IRAM=y
+    CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y    ; mehr Durchsatz aus dem PSRAM
+```
+
+Messung mit unveränderten Werten (10 MHz, 19200 px Bounce Buffer), Bild dabei durchgehend ruhig:
+
+| Last | Aussetzer |
+|---|---|
+| Leerlauf, 30 s | 0 |
+| Dauerschreiben in den NVS, 90 s (449 Schreibzugriffe) | 0 |
+| 12 WLAN-Scans, 60 s | 0 |
+| NVS-Schreiben und WLAN-Scans gleichzeitig, 60 s (304 Schreibzugriffe) | 0 |
+| WLAN an ohne Stromsparmodus, 30 s | 0 |
+
+Bildrate durchgehend 35,2 Bilder/s. Der erste Build kompiliert das ESP-IDF neu und dauert je nach Rechner 5 bis 25 Minuten.
+
+**Folge für die Firmware:** Die S3-Umgebung übernimmt Plattform und `custom_sdkconfig`. WLAN und Schreibzugriffe ins Flash sind damit auch auf diesem Board erlaubt.
 
 ## Prüfliste
 
