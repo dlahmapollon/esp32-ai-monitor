@@ -35,6 +35,16 @@ static const char* strings_de[] = {
     "im Plan",               // STR_ON_PACE
     "zu schnell",            // STR_TOO_FAST
     "%d %% der Zeit vergangen", // STR_TIME_ELAPSED
+    "Prognose",              // STR_FORECAST
+    "Tagesbudget",           // STR_DAILY_BUDGET
+    "Reicht",                // STR_LASTS
+    "bis zum Reset",         // STR_UNTIL_RESET
+    "Leer",                  // STR_EMPTY
+    "leer ab %s",            // STR_EMPTY_AT
+    "Limit erreicht",        // STR_LIMIT_REACHED
+    "pro Tag bis Reset",     // STR_PER_DAY
+    "Rest bis Reset",        // STR_LEFT_UNTIL_RESET
+    "noch zu frueh",         // STR_TOO_EARLY
 };
 
 static const char* strings_en[] = {
@@ -67,6 +77,16 @@ static const char* strings_en[] = {
     "On pace",               // STR_ON_PACE
     "Too fast",              // STR_TOO_FAST
     "%d%% of time elapsed",  // STR_TIME_ELAPSED
+    "Forecast",              // STR_FORECAST
+    "Daily budget",          // STR_DAILY_BUDGET
+    "Lasts",                 // STR_LASTS
+    "until reset",           // STR_UNTIL_RESET
+    "Empty",                 // STR_EMPTY
+    "empty at %s",           // STR_EMPTY_AT
+    "Limit reached",         // STR_LIMIT_REACHED
+    "per day until reset",   // STR_PER_DAY
+    "left until reset",      // STR_LEFT_UNTIL_RESET
+    "too early",             // STR_TOO_EARLY
 };
 
 const char* L(StrId id) {

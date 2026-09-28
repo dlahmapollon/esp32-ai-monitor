@@ -41,6 +41,16 @@ enum StrId {
     STR_ON_PACE,          // "im Plan" / "On pace"
     STR_TOO_FAST,         // "zu schnell" / "Too fast"
     STR_TIME_ELAPSED,     // "%d %% der Zeit vergangen" / "%d%% of time elapsed"
+    STR_FORECAST,         // "Prognose" / "Forecast"
+    STR_DAILY_BUDGET,     // "Tagesbudget" / "Daily budget"
+    STR_LASTS,            // "Reicht" / "Lasts"
+    STR_UNTIL_RESET,      // "bis zum Reset" / "until reset"
+    STR_EMPTY,            // "Leer" / "Empty"
+    STR_EMPTY_AT,         // "leer ab %s" / "empty at %s"
+    STR_LIMIT_REACHED,    // "Limit erreicht" / "Limit reached"
+    STR_PER_DAY,          // "pro Tag bis Reset" / "per day until reset"
+    STR_LEFT_UNTIL_RESET, // "Rest bis Reset" / "left until reset"
+    STR_TOO_EARLY,        // "noch zu frueh" / "too early"
     _STR_COUNT
 };
 

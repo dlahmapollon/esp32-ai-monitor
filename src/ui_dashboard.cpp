@@ -116,6 +116,8 @@ struct PaceTick {
 
 // Claude und ChatGPT mit drei Limits: das Limit mit dem laengsten Fenster
 // als Ring, rechts daneben Reset und Tempo, die beiden anderen als Kacheln.
+// Ein einzelnes Limit (ChatGPT nur mit Woche) nutzt dasselbe Layout, die
+// Kacheln zeigen dann Prognose und Tagesbudget statt weiterer Limits.
 struct HeroWidgets {
     lv_obj_t *group;
     lv_obj_t *arc;
@@ -133,6 +135,9 @@ struct HeroWidgets {
     lv_obj_t *tile_bar[2];
     lv_obj_t *tile_reset[2];
     PaceTick  tile_tick[2];
+    lv_obj_t *info_value[2];
+    lv_obj_t *info_caption[2];
+    int16_t   info_value_mid;   // senkrechte Mitte der Info-Werte
 };
 static HeroWidgets hero = {};
 
@@ -959,6 +964,14 @@ static void create_square_hero(lv_obj_t *parent, int16_t header_h) {
         pace_tick_create_bar(hero.tile_tick[t], g, x + 16, tile_y + 104, inner_w, 14);
         hero.tile_reset[t] = create_square_label(g, &lv_font_montserrat_16, UI_COLOR_TEXT_SEC,
                                                  x + 16, tile_y + 130, inner_w);
+
+        // Info-Kachel bei nur einem Limit: Wert und Erlaeuterung, kein Balken
+        hero.info_value[t] = create_square_label(g, &lv_font_montserrat_36, UI_COLOR_TEXT,
+                                                 x + 16, tile_y + 50, inner_w);
+        hero.info_value_mid = tile_y + 50 + lv_font_get_line_height(&lv_font_montserrat_36) / 2;
+        lv_label_set_long_mode(hero.info_value[t], LV_LABEL_LONG_CLIP);
+        hero.info_caption[t] = create_square_label(g, &lv_font_montserrat_16, UI_COLOR_TEXT_SEC,
+                                                   x + 16, tile_y + 110, inner_w);
     }
 }
 
@@ -1452,6 +1465,81 @@ static uint8_t hero_row_index(const UsageData &u) {
     return best_minutes > 0 ? best : 1;
 }
 
+// Wert einer Info-Kachel: 36 px, wenn er passt, sonst 24 px
+// ("3 Tg. 16 Std." ist fuer die grosse Schrift zu breit). Beide Kacheln
+// bleiben auf derselben Mittellinie.
+static void set_info_value(lv_obj_t *lbl, const char *text, lv_color_t color) {
+    const int16_t w = lv_obj_get_width(lbl);
+    const lv_font_t *font = text_width(text, &lv_font_montserrat_36) <= w
+        ? &lv_font_montserrat_36 : &lv_font_montserrat_24;
+    lv_obj_set_style_text_font(lbl, font, LV_PART_MAIN);
+    lv_obj_set_style_text_color(lbl, color, LV_PART_MAIN);
+    lv_obj_set_y(lbl, hero.info_value_mid - lv_font_get_line_height(font) / 2);
+    lv_label_set_text(lbl, text);
+}
+
+// Kachel "Prognose": haelt das Kontingent beim bisherigen Tempo bis zum
+// Reset, und wenn nicht, wann ist es leer? Hochgerechnet aus Verbrauch und
+// vergangener Zeit, wie die Tempo-Marke am Ring.
+static void update_forecast_tile(uint8_t t, float used, float elapsed,
+                                 uint32_t window_minutes) {
+    char val[24];
+    char cap[40];
+    lv_color_t color = UI_COLOR_TEXT;
+    if (used >= 1.0f) {
+        snprintf(val, sizeof(val), "%s", L(STR_EMPTY));
+        snprintf(cap, sizeof(cap), "%s", L(STR_LIMIT_REACHED));
+        color = UI_COLOR_BAR_ORANGE;
+    } else if (elapsed < 0.0f) {
+        snprintf(val, sizeof(val), "--");
+        cap[0] = '\0';
+    } else if (used <= elapsed) {
+        snprintf(val, sizeof(val), "%s", L(STR_LASTS));
+        snprintf(cap, sizeof(cap), "%s", L(STR_UNTIL_RESET));
+        color = UI_COLOR_SUCCESS;
+    } else if (elapsed < 0.02f) {
+        // Erste Minuten des Fensters: die Hochrechnung schwankt zu stark
+        snprintf(val, sizeof(val), "--");
+        snprintf(cap, sizeof(cap), "%s", L(STR_TOO_EARLY));
+    } else {
+        const float window_s = (float)window_minutes * 60.0f;
+        const float to_empty_s = (1.0f - used) * elapsed / used * window_s;
+        const time_t empty_at = time(nullptr) + (time_t)to_empty_s;
+        format_reset_compact(empty_at, val, sizeof(val));
+        char when[20];
+        format_reset_short(empty_at, when, sizeof(when));
+        snprintf(cap, sizeof(cap), L(STR_EMPTY_AT), when);
+        color = UI_COLOR_BAR_ORANGE;
+    }
+    set_info_value(hero.info_value[t], val, color);
+    lv_label_set_text(hero.info_caption[t], cap);
+}
+
+// Kachel "Tagesbudget": wie viel vom Rest pro Tag verbraucht werden darf,
+// damit er bis zum Reset reicht. Unter einem Tag der ganze Rest.
+static void update_budget_tile(uint8_t t, float used, time_t reset_epoch) {
+    char val[16];
+    char cap[40];
+    const time_t now = time(nullptr);
+    if (reset_epoch <= 0 || now <= CLOCK_VALID_EPOCH) {
+        snprintf(val, sizeof(val), "--");
+        cap[0] = '\0';
+    } else {
+        float left = 1.0f - used;
+        if (left < 0.0f) left = 0.0f;
+        const float days = (float)(reset_epoch - now) / 86400.0f;
+        if (days >= 1.0f) {
+            snprintf(val, sizeof(val), "%d%%", (int)(left / days * 100.0f + 0.5f));
+            snprintf(cap, sizeof(cap), "%s", L(STR_PER_DAY));
+        } else {
+            snprintf(val, sizeof(val), "%d%%", (int)(left * 100.0f + 0.5f));
+            snprintf(cap, sizeof(cap), "%s", L(STR_LEFT_UNTIL_RESET));
+        }
+    }
+    set_info_value(hero.info_value[t], val, UI_COLOR_TEXT);
+    lv_label_set_text(hero.info_caption[t], cap);
+}
+
 static const char *row_title(const MonitorState &state, uint8_t i) {
     return L_row_title(state.usage.row_title[i][0] != '\0'
         ? state.usage.row_title[i]
@@ -1461,7 +1549,7 @@ static const char *row_title(const MonitorState &state, uint8_t i) {
 static void update_square_hero(const MonitorState &state) {
     const UsageData &u = state.usage;
     const bool rem = u.shows_remaining;
-    const uint8_t h = hero_row_index(u);
+    const uint8_t h = u.row_count == 1 ? 0 : hero_row_index(u);
     char buf[40];
 
     lv_label_set_text(hero.title, row_title(state, h));
@@ -1491,6 +1579,25 @@ static void update_square_hero(const MonitorState &state) {
         lv_label_set_text(hero.pace_lbl, L(on_pace ? STR_ON_PACE : STR_TOO_FAST));
         snprintf(buf, sizeof(buf), L(STR_TIME_ELAPSED), (int)(elapsed * 100.0f + 0.5f));
         lv_label_set_text(hero.pace_detail, buf);
+    }
+
+    // Nur ein Limit: die Kacheln zeigen Prognose und Tagesbudget.
+    const bool info_tiles = u.row_count == 1;
+    for (uint8_t i = 0; i < 2; i++) {
+        set_obj_hidden(hero.tile_pct[i], info_tiles);
+        set_obj_hidden(hero.tile_bar[i], info_tiles);
+        set_obj_hidden(hero.tile_reset[i], info_tiles);
+        set_obj_hidden(hero.info_value[i], !info_tiles);
+        set_obj_hidden(hero.info_caption[i], !info_tiles);
+        if (info_tiles) pace_tick_hide(hero.tile_tick[i]);
+    }
+    if (info_tiles) {
+        const float used = used_fraction(u.row_utilization[h], rem);
+        lv_label_set_text(hero.tile_title[0], L(STR_FORECAST));
+        update_forecast_tile(0, used, elapsed, u.row_window_minutes[h]);
+        lv_label_set_text(hero.tile_title[1], L(STR_DAILY_BUDGET));
+        update_budget_tile(1, used, u.row_reset_epoch[h]);
+        return;
     }
 
     uint8_t t = 0;
@@ -1608,21 +1715,26 @@ void ui_dashboard_update(const MonitorState &state) {
     const bool uses_compact_rows = !uses_single_arc && state.usage.row_count > 0
                                 && (state.provider == PROVIDER_ANTIGRAVITY
                                     || state.usage.row_count != 2);
-    // Quadratisch: Claude/ChatGPT mit drei Limits als Ring plus Kacheln.
-    const bool uses_hero = square_layout && uses_compact_rows && state.usage.valid
-                        && state.usage.row_count == AG_ROW_COUNT
-                        && provider_uses_hero(state.provider);
+    // Quadratisch: Claude/ChatGPT mit drei Limits als Ring plus Kacheln,
+    // ein einzelnes Limit (jeder Provider) als Ring plus Prognose-Kacheln.
+    // Hinweise ohne gueltige Daten bleiben beim zentrierten Ring.
+    const bool uses_hero = square_layout && state.usage.valid
+                        && ((uses_compact_rows && state.usage.row_count == AG_ROW_COUNT
+                             && provider_uses_hero(state.provider))
+                            || state.usage.row_count == 1);
     const bool rem = state.usage.shows_remaining;
     set_standard_widgets_visible(!uses_compact_rows && !uses_single_arc);
     set_antigravity_widgets_visible(uses_compact_rows && !uses_hero);
-    set_single_widgets_visible(uses_single_arc);
+    set_single_widgets_visible(uses_single_arc && !uses_hero);
     set_obj_hidden(hero.group, !uses_hero);
 
     // ---- Usage blocks ----
     if (state.usage.valid) {
         char buf[32];
 
-        if (uses_single_arc) {
+        if (uses_hero) {
+            update_square_hero(state);
+        } else if (uses_single_arc) {
             const char *title = state.usage.row_title[0][0] != '\0'
                 ? L_row_title(state.usage.row_title[0]) : L(STR_WEEKLY);
             lv_label_set_text(lbl_single_title, title);
@@ -1643,8 +1755,6 @@ void ui_dashboard_update(const MonitorState &state) {
             }
             pace_tick_set(single_tick, pace_position(window_elapsed(
                 state.usage.row_reset_epoch[0], state.usage.row_window_minutes[0]), rem));
-        } else if (uses_hero) {
-            update_square_hero(state);
         } else if (uses_compact_rows) {
             lv_color_t ag_color = ui_bar_color(state.provider);
             for (uint8_t i = 0; i < AG_ROW_COUNT; i++) {
