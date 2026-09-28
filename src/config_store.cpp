@@ -67,8 +67,7 @@ void config_load(AppConfig &cfg) {
 // ============================================================
 void config_save(const AppConfig &cfg) {
     if (!board_persists_config()) {
-        // Absichtlich nichts tun: ein Schreibzugriff ins Flash wuerde auf dem
-        // RGB-Board das Bild dauerhaft verschieben.
+        // Absichtlich nichts tun: dieses Board speichert nicht (siehe board.h).
         return;
     }
 

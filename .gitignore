@@ -20,3 +20,12 @@ hardware-test/**/.dummy/
 hardware-test/**/managed_components/
 hardware-test/**/dependencies.lock
 hardware-test/**/sdkconfig*
+
+# S3-Firmware: Artefakte des IDF-Builds im Projektwurzelverzeichnis
+# (custom_sdkconfig in platformio.ini, werden bei jedem Build neu erzeugt)
+/.dummy/
+/managed_components/
+/dependencies.lock
+/CMakeLists.txt
+/sdkconfig.*
+/sdkconfig.defaults

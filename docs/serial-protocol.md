@@ -162,6 +162,7 @@ Antwort auf `get_info` `(serial_receiver.cpp:353-389)`.
 | `timeSynced` | Bool | NTP-Sync erfolgt | 378 |
 | `uptime` | Int | Sekunden seit Boot | 379 |
 | `heap` | Int | freier Heap in Bytes | 379 |
+| `frameGlitches` | Int | Bildaussetzer seit Boot (Bild dauert länger als das 1,5-Fache des Nennwerts); nur das S3-RGB-Panel misst, die CYDs melden 0. Seit FW 2.21.0 | 454 |
 
 Beispiel:
 

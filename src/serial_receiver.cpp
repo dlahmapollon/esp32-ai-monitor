@@ -441,7 +441,7 @@ static void handle_get_info() {
                   "\"theme\":\"%s\",\"language\":\"%s\",\"brightness\":%u,"
                   "\"serialTransport\":\"%s\",\"maxFrameBytes\":%u,\"sceneProtocol\":1,"
                   "\"wifiConfigured\":%s,\"wifiConnected\":%s,\"timeSynced\":%s,"
-                  "\"uptime\":%lu,\"heap\":%u}\n",
+                  "\"uptime\":%lu,\"heap\":%u,\"frameGlitches\":%lu}\n",
                   APP_VERSION, mac_str, DISPLAY_ID, orient, theme, lang,
                   (unsigned)g_config.brightness_pct,
                   SERIAL_FRAME_MAGIC,
@@ -450,7 +450,8 @@ static void handle_get_info() {
                   wifi_time_is_connected() ? "true" : "false",
                   wifi_time_is_synced() ? "true" : "false",
                   (unsigned long)(millis() / 1000),
-                  (unsigned)ESP.getFreeHeap());
+                  (unsigned)ESP.getFreeHeap(),
+                  (unsigned long)board_frame_glitches());
 }
 
 // --- reboot ---
@@ -508,7 +509,7 @@ static void print_view_state() {
 
 static void persist_touch_view() {
     Preferences prefs;
-    // Kein Flash-Schreiben auf Boards ohne dauerhafte Ablage (RGB-Board, siehe board.h).
+    // Kein Flash-Schreiben auf Boards ohne dauerhafte Ablage (siehe board.h).
     if (board_persists_config() && prefs.begin(NVS_NAMESPACE, false)) {
         prefs.putUChar("view_active", active_view);
         prefs.end();
