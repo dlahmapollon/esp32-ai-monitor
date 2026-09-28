@@ -44,6 +44,10 @@ export default function Connection({ t, now, connection }: Props) {
   }, [connection?.state, connection?.port]);
 
   useEffect(() => {
+    // Neues oder getrenntes Gerät: nichts vom vorherigen Display stehen lassen.
+    setWifiError("");
+    setSelectedSsid("");
+    setPassword("");
     if (connection?.state !== "connected") {
       setWifi(null);
       setNetworks([]);
