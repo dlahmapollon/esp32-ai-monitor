@@ -269,7 +269,10 @@ final class DisplayPlugins {
             let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
             let now = Date()
             let retryAfter = record.error == nil ? interval : min(interval, 60)
-            if record.sceneTheme == theme,
+            // Nur fertige Szenen im anderen Theme sofort neu rendern. Nach einem
+            // Fehler gilt die Wartezeit, sonst ruft onChange -> refresh endlos ab.
+            let themeChanged = record.error == nil && record.sceneTheme != nil && record.sceneTheme != theme
+            if !themeChanged,
                let attempt = record.lastAttempt, now.timeIntervalSince(attempt) < retryAfter { continue }
             record.lastAttempt = now
             records[id] = record
