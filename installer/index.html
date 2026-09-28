@@ -13,17 +13,17 @@
   <meta property="og:description" content="Deine KI-Limits auf einen Blick. Ein kleines USB-Display für Claude, ChatGPT, Gemini, Copilot, Cursor und Antigravity, verbunden mit deinem Mac oder Windows-PC.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://tobymarks.github.io/esp32-ai-monitor/">
-  <meta property="og:image" content="https://tobymarks.github.io/esp32-ai-monitor/assets/display-chatgpt-front.jpg">
+  <meta property="og:image" content="https://tobymarks.github.io/esp32-ai-monitor/assets/renders/cyd-blue.jpg">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#f6f7f9">
+  <meta name="theme-color" content="#ffffff">
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="icon" href="assets/favicon-64.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="preload" href="assets/fonts/plus-jakarta-sans-400-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="assets/fonts/plus-jakarta-sans-700-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/roboto-mono-400-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="assets/site.css">
+  <link rel="stylesheet" href="assets/product.css">
 </head>
-<body>
+<body class="product-site">
   <a class="skip-link" href="#main" data-i18n="skip">Zum Inhalt springen</a>
 
   <header class="shell topbar">
@@ -32,10 +32,11 @@
       <span translate="no">AI Monitor</span>
     </a>
     <nav aria-label="Hauptnavigation" data-i18n-aria="nav.label">
+      <a href="#ansichten" data-i18n="nav.displays">Anzeige</a>
       <a href="#download" data-i18n="nav.download">Downloads</a>
       <a href="#setup" data-i18n="nav.setup">Einrichtung</a>
       <a href="#hardware" data-i18n="nav.hardware">Hardware</a>
-      <a href="#hilfe" data-i18n="nav.help">Hilfe</a>
+
       <a href="https://github.com/tobymarks/esp32-ai-monitor" target="_blank" rel="noopener">GitHub</a>
     </nav>
     <div class="lang-switch" role="group" aria-label="Sprache / Language">
@@ -46,42 +47,58 @@
 
   <main id="main">
     <section class="shell hero" id="top">
-      <div>
-        <p class="eyebrow hero-eyebrow"><span class="status-dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Kleines Display. Freier Kopf.</span></p>
-        <h1><span data-i18n="hero.title.1">Deine KI-Limits.</span><span class="accent-text" data-i18n="hero.title.2">Immer im Blick.</span></h1>
-        <p class="hero-copy" data-i18n="hero.copy">Wie viel ist noch drin? AI Monitor zeigt dir deine Nutzungslimits für Claude, ChatGPT, Gemini, Copilot, Cursor und Antigravity – auf einem kleinen Display direkt an deinem Arbeitsplatz.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="https://github.com/tobymarks/esp32-ai-monitor/releases/download/app-v1.31.0/AIMonitor.dmg" data-i18n="hero.cta.app">App für den Mac laden ↓</a>
-          <a class="text-link" href="#setup"><span data-i18n="hero.cta.setup">So funktioniert’s</span><span aria-hidden="true">↗</span></a>
+      <div class="hero-intro">
+        <div class="hero-heading">
+          <p class="eyebrow hero-eyebrow" data-i18n="hero.eyebrow">Ein Open-Source-Projekt von Toby Marks</p>
+          <h1><span data-i18n="hero.title.1">KI-Nutzung auf</span><span data-i18n="hero.title.2">einem eigenen Display.</span></h1>
         </div>
-        <p class="hero-note" data-i18n-html="hero.note"><strong>Für macOS 14+, Apple Silicon und Intel.</strong> Benötigt CodexBar als Datenquelle. Auch <a href="#download">für Windows 10 und 11</a>.</p>
-        <div class="meta-strip" aria-label="Kurzinfos" data-i18n-aria="hero.meta.label">
-          <div class="meta">
-            <strong>macOS 14+</strong>
-            <span>Apple Silicon &amp; Intel</span>
+        <div class="hero-summary">
+          <p class="hero-copy" data-i18n="hero.copy">AI Monitor zeigt deine Nutzungslimits und Reset-Zeiten auf einem kleinen ESP32 neben dem Rechner. Die Daten kommen per USB vom Mac oder Windows-PC.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#download"><span data-i18n="hero.cta.app">Software herunterladen</span><span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="#setup"><span data-i18n="hero.cta.setup">So funktioniert’s</span><span aria-hidden="true">↗</span></a>
           </div>
-          <div class="meta">
-            <strong>USB Serial</strong>
-            <span data-i18n="hero.meta.nowifi">Kein WLAN am Display nötig</span>
-          </div>
-          <div class="meta">
-            <strong><span data-i18n="hero.meta.fw">Firmware</span> <span data-v="fw">v2.20.1</span></strong>
-            <span><span data-i18n="hero.meta.app">App</span> <span data-v="app">v1.31.0</span></span>
-          </div>
+          <p class="hero-note" data-i18n-html="hero.note">Für <strong>Mac und Windows</strong>. Kostenlos &amp; Open Source.</p>
         </div>
       </div>
 
-      <div class="hero-visual" aria-label="AI Monitor Display">
-        <div class="visual-label"><span class="status-dot" aria-hidden="true"></span><span data-i18n="hero.visual.label">Deine Limits bekommen einen festen Platz.</span></div>
-        <figure class="product-photo">
-          <img src="assets/display-chatgpt-front.jpg" alt="AI Monitor Display im gedruckten Gehäuse mit ChatGPT-Limits" data-i18n-alt="hero.img.alt" width="1800" height="1350" fetchpriority="high" decoding="async">
+      <div class="hero-visual" id="product-preview">
+        <figure class="product-photo" aria-busy="false">
+          <img id="product-image" src="assets/renders/s3-claude-graphite.jpg" alt="S3 mit vollständiger Claude-Ansicht im graphitfarbenen Ständer" width="1536" height="1024" fetchpriority="high" decoding="async">
+          <span class="image-loading" id="product-loading" role="status" hidden data-i18n="show.loading">Ansicht wird geladen…</span>
         </figure>
-        <div class="visual-caption"><span>AI Monitor <span class="caption-divider">/</span> ESP32</span><span data-i18n="hero.visual.caption">Per USB mit deinem Mac verbunden</span></div>
+        <div class="product-controls">
+          <p class="product-kicker" data-i18n="show.model">Display wählen</p>
+          <div class="model-switch" role="group" aria-label="Display wählen" data-i18n-aria="show.model">
+            <button type="button" data-model="cyd" aria-pressed="false" translate="no">CYD <span>2.8″</span></button>
+            <button type="button" data-model="s3" aria-pressed="true" translate="no">ESP32-S3 <span>4.0″</span></button>
+          </div>
+          <div class="product-options">
+            <span class="product-kicker" data-i18n="show.color">Gehäusefarbe</span>
+            <p id="product-name" aria-live="polite">ESP32-S3 / Graphit</p>
+            <div class="swatches" role="group" aria-label="Gehäusefarbe wählen" data-i18n-aria="show.colors">
+              <button type="button" class="swatch blue" data-color="blue" aria-pressed="false" aria-label="Kobaltblau" data-i18n-aria="color.blue"></button>
+              <button type="button" class="swatch graphite" data-color="graphite" aria-pressed="true" aria-label="Graphit" data-i18n-aria="color.graphite"></button>
+              <button type="button" class="swatch terracotta" data-color="terracotta" aria-pressed="false" aria-label="Terrakotta" data-i18n-aria="color.terracotta"></button>
+            </div>
+          </div>
+          <dl class="product-specs">
+            <div><dt data-i18n="show.resolution">Auflösung</dt><dd id="product-resolution">480 × 480 px</dd></div>
+            <div><dt data-i18n="show.connection">Verbindung</dt><dd>USB</dd></div>
+            <div><dt data-i18n="show.case">Gehäuse</dt><dd data-i18n="show.print">3D-Druck</dd></div>
+          </dl>
+          <a class="text-link product-more" href="#hardware"><span data-i18n="show.details">Hardware &amp; Druckdateien</span><span aria-hidden="true">↗</span></a>
+          <p class="render-note" data-i18n="show.note">KI-Visualisierung · Gehäuse selbst drucken</p>
+          <p id="product-error" class="render-note" role="status" hidden data-i18n="show.error">Die gewählte Ansicht konnte nicht geladen werden. Bitte wähle die Farbe erneut.</p>
+        </div>
+      </div>
+      <div class="product-facts" aria-label="Kurzinfos" data-i18n-aria="hero.meta.label">
+        <span>macOS 14+ / Windows 10+</span><span data-i18n="hero.meta.nowifi">Strom &amp; Daten über USB</span><a href="https://github.com/tobymarks/esp32-ai-monitor" target="_blank" rel="noopener">Open Source / MIT</a>
       </div>
     </section>
 
     <div class="shell provider-band">
-      <p data-i18n="providers.label">Ein Display für deine KI-Dienste</p>
+      <p data-i18n="providers.label">Unterstützte Dienste</p>
       <div class="providers" translate="no">
         <span class="provider"><svg class="provider-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#d97757" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>Claude</span>
         <span class="provider"><svg class="provider-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>ChatGPT</span>
@@ -93,16 +110,112 @@
       <a href="https://github.com/tobymarks/esp32-ai-monitor" target="_blank" rel="noopener" data-i18n="providers.source">Open Source auf GitHub</a>
     </div>
 
+    <section class="shell section screen-section" id="ansichten">
+      <div class="display-detail">
+        <div class="display-explanation">
+          <p class="eyebrow">ESP32-S3 · 480 × 480</p>
+          <h2 data-i18n="detail.title">Was auf das große Display passt</h2>
+          <p data-i18n="detail.intro">Bei Claude mit drei Kontingenten zeigt das S3 alle drei gleichzeitig. Dazu kommen Reset-Zeit und eine Einschätzung deines Verbrauchstempos.</p>
+          <dl class="display-notes">
+            <div><dt data-i18n="detail.week.h">Wochenlimit</dt><dd data-i18n="detail.week.p">Der große Ring zeigt den Verbrauch. Daneben steht, wann das Kontingent erneuert wird.</dd></div>
+            <div><dt data-i18n="detail.pace.h">Verbrauch im Verhältnis zur Zeit</dt><dd data-i18n="detail.pace.p">„Im Plan“ bedeutet: Der verbrauchte Anteil liegt noch unter dem bereits vergangenen Anteil des Zeitfensters.</dd></div>
+            <div><dt data-i18n="detail.extra.h">Sitzung und Zusatzlimit</dt><dd data-i18n="detail.extra.p">Zwei eigene Felder mit Prozentwert, Balken und Restzeit. Hier: Sitzung und „nur Fable“.</dd></div>
+          </dl>
+        </div>
+        <figure class="firmware-detail"><img src="assets/screens/s3-claude-full.png" width="480" height="480" alt="Claude auf dem S3: Woche 22 %, Sitzung 97 %, nur Fable 53 %, Reset und Tempoanzeige" data-i18n-alt="detail.alt" loading="lazy"><figcaption data-i18n="detail.caption">Direkt aus der Firmware gerendert · Beispieldaten</figcaption></figure>
+      </div>
+      <div class="cyd-layouts">
+        <div><h3 data-i18n="compact.title">Das kleine CYD</h3><p data-i18n="compact.copy">Woche und Sitzung als Ringe im Querformat oder als Balken im Hochformat. Die Anzeige passt sich dem Format an.</p></div>
+        <figure><img src="assets/screens/cyd-rings.png" width="320" height="240" alt="Claude auf dem CYD im Querformat" data-i18n-alt="compact.landscape" loading="lazy"><figcaption>320 × 240</figcaption></figure>
+        <figure class="cyd-portrait"><img src="assets/screens/cyd-bars.png" width="240" height="320" alt="Claude auf dem CYD im Hochformat" data-i18n-alt="compact.portrait" loading="lazy"><figcaption>240 × 320</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="shell section desk-story" id="displays">
+      <h2 data-i18n="desk.title">Auf dem Schreibtisch</h2>
+      <div class="desk-pair">
+        <figure><img src="assets/renders/desk-cyd.jpg" alt="CYD unter einem Monitor" data-i18n-alt="desk.cyd.alt" width="1536" height="1024" loading="lazy"><figcaption data-i18n="desk.cyd.caption">CYD · unter dem Monitor</figcaption></figure>
+        <figure><img src="assets/renders/desk-s3-claude.jpg" alt="S3 mit Claude-Ansicht neben einer Tastatur" data-i18n-alt="desk.s3.alt" width="1536" height="1024" loading="lazy"><figcaption data-i18n="desk.s3.caption">S3 · im gedruckten Case Stand V3</figcaption></figure>
+      </div>
+      <p class="render-note" data-i18n="desk.note">KI-Visualisierungen auf Basis der Geräte. Die Farben sind Beispiele für den 3D-Druck.</p>
+    </section>
+
+    <section class="shell section" id="hardware">
+      <div class="section-header">
+        <h2 data-i18n="hw.title">Hardware und Druckdateien</h2>
+        <p data-i18n="hw.sub">Unterstützt werden diese beiden Display-Familien. Dazu brauchst du ein USB-Datenkabel; die passenden Gehäuse kannst du selbst drucken.</p>
+      </div>
+
+      <div class="hardware-grid">
+        <article class="board-card">
+          <div class="board-copy">
+            <p class="eyebrow" data-i18n="hw.board.label">Kompakt</p><h3 data-i18n="hw.cyd.title">CYD · 2,8 Zoll</h3><p class="board-model">ESP32-2432S028 / ESP32-2432S028R</p>
+            <p data-i18n="hw.board.p">2,8-Zoll-Farbdisplay mit Touchscreen und ESP32. Strom und Daten kommen über ein einziges USB-Kabel.</p>
+            <div class="tag-list">
+              <span class="tag">R-Board: ILI9341</span>
+              <span class="tag">Non-R: ST7789</span>
+              <span class="tag">320&nbsp;×&nbsp;240&nbsp;px</span>
+            </div>
+          </div>
+        </article>
+
+      <article class="board-card">
+        <div class="board-copy">
+          <p class="eyebrow" data-i18n="hw.s3.label">Mehr Anzeigefläche</p><h3 data-i18n="hw.s3.title">S3 · 4 Zoll</h3><p class="board-model">Guition ESP32-S3-4848S040</p>
+          <p data-i18n="hw.s3.p">480 × 480 Pixel bieten Platz für Wochenlimit, Reset und Tempoanzeige sowie zwei weitere Kontingente. Welche Felder erscheinen, hängt von den gelieferten Daten des KI-Dienstes ab.</p>
+          <div class="tag-list">
+            <span class="tag">ESP32-S3</span>
+            <span class="tag">ST7701S</span>
+            <span class="tag">480&nbsp;×&nbsp;480&nbsp;px</span>
+          </div>
+        </div>
+      </article>
+      </div>
+
+        <div class="hardware-support">
+          <article class="plain-card">
+            <h3 data-i18n="hw.need.h">Das brauchst du</h3>
+            <ul>
+              <li><a href="https://de.aliexpress.com/item/1005007731775734.html" target="_blank" rel="noopener" data-i18n="hw.need.1">Cheap Yellow Display (2,8 Zoll) auf AliExpress ansehen</a></li>
+              <li><a href="https://de.aliexpress.com/item/1005008214679682.html" target="_blank" rel="noopener" data-i18n="hw.need.1b">Oder das quadratische ESP32-S3-4848S040 (4 Zoll) auf AliExpress ansehen</a></li>
+              <li data-i18n="hw.need.2">USB-Kabel mit Datenübertragung</li>
+              <li data-i18n="hw.need.3">Mac mit macOS 14 oder neuer — Apple Silicon oder Intel — oder Windows 10/11, 64 Bit</li>
+              <li data-i18n="hw.need.4">CodexBar (Mac) oder Win-CodexBar (Windows) mit mindestens einem eingerichteten KI-Dienst</li>
+            </ul>
+            <p class="need-guide"><a href="https://www.hackster.io/toby-marks/esp32-desk-display-for-claude-and-chatgpt-usage-limits-71d7e3" target="_blank" rel="noopener" data-i18n="hw.need.guide">Schritt-für-Schritt-Anleitung auf Hackster.io</a></p>
+          </article>
+          <article class="plain-card">
+            <h3 data-i18n="hw.case.h">Ein Gehäuse für deinen Schreibtisch</h3>
+            <div class="case-links">
+              <a class="case-link" href="https://makerworld.com/de/models/2583102-weather-station-pro-anemometer-esp32-2432s028-cyd#profileId-2849155" target="_blank" rel="noopener">
+                <span data-i18n="hw.case.landscape">Querformat · 3D-Druckdatei</span>
+                <strong>Weather Station Pro <span aria-hidden="true">↗</span></strong>
+              </a>
+              <a class="case-link" href="https://makerworld.com/de/models/1382304-aura-smart-weather-forecast-display?from=search#profileId-1430951" target="_blank" rel="noopener">
+                <span data-i18n="hw.case.portrait">Hochformat · 3D-Druckdatei</span>
+                <strong>Aura Smart Display <span aria-hidden="true">↗</span></strong>
+              </a>
+              <a class="case-link" href="https://makerworld.com/de/models/2581572-guition-esp32s3-4848s040-case-stand-v3#profileId-3013482" target="_blank" rel="noopener">
+                <span data-i18n="hw.case.s3">ESP32-S3-4848S040 · 3D-Druckdatei</span>
+                <strong>Case Stand V3 · cardboxed <span aria-hidden="true">↗</span></strong>
+              </a>
+            </div>
+          </article>
+        </div>
+
+
+
+    </section>
+
     <section class="shell section" id="download">
       <div class="section-header">
-        <p class="eyebrow" data-i18n="dl.eyebrow">Downloads</p>
-        <h2 data-i18n="dl.title">Zwei Apps. Ein klarer Überblick.</h2>
+        <h2 data-i18n="dl.title">Die Software dazu</h2>
         <p data-i18n="dl.sub">CodexBar ruft deine Nutzungslimits ab. Die AI Monitor App überträgt sie per USB auf dein Display. Du brauchst beide Apps auf deinem Mac oder Windows-PC.</p>
       </div>
 
       <div class="download-list">
         <article class="plain-card download-card">
-          <div class="download-heading"><span class="app-symbol" aria-hidden="true">C<span>_</span></span><span class="eyebrow" data-i18n="dl.cb.role">01 / Die Datenquelle</span></div>
+          <div class="download-heading"><span class="app-symbol" aria-hidden="true">C<span>_</span></span><span class="eyebrow" data-i18n="dl.cb.role">Liest die Nutzungslimits aus</span></div>
           <h3>CodexBar</h3>
           <p data-i18n="dl.cb.p">Ruft die Nutzungslimits deiner eingerichteten KI-Dienste ab und stellt sie lokal auf deinem Computer bereit. Unter Windows übernimmt das Win-CodexBar.</p>
           <div class="tag-list">
@@ -113,7 +226,7 @@
           </div>
         </article>
         <article class="plain-card download-card featured">
-          <div class="download-heading"><img class="app-symbol app-symbol-icon" src="assets/app-icon.svg" alt="" width="43" height="43" loading="lazy" decoding="async"><span class="eyebrow" data-i18n="dl.app.role">02 / Die Verbindung zum Display</span></div>
+          <div class="download-heading"><img class="app-symbol app-symbol-icon" src="assets/app-icon.svg" alt="" width="43" height="43" loading="lazy" decoding="async"><span class="eyebrow" data-i18n="dl.app.role">Verbindet Rechner und Display</span></div>
           <h3>AI Monitor App</h3>
           <p data-i18n="dl.app.p">Verbindet deinen Mac oder Windows-PC mit dem Display. Hier stellst du die Anzeige ein und installierst die passende Firmware.</p>
           <div class="tag-list">
@@ -163,8 +276,7 @@
 
     <section class="shell section" id="setup">
       <div class="section-header">
-        <p class="eyebrow" data-i18n="setup.eyebrow">Einrichtung</p>
-        <h2 data-i18n="setup.title">In vier Schritten startklar.</h2>
+        <h2 data-i18n="setup.title">Einrichtung</h2>
       </div>
       <div class="flow" aria-label="Schritte zur Einrichtung" data-i18n-aria="setup.flow.label">
         <article class="flow-step">
@@ -195,101 +307,6 @@
             <p data-i18n="setup.s4.p">Wähle in der App die Display-Variante, installiere die Firmware und wähle deinen KI-Dienst aus.</p>
           </div>
         </article>
-      </div>
-    </section>
-
-    <section class="shell section" id="hardware">
-      <div class="section-header">
-        <p class="eyebrow" data-i18n="hw.eyebrow">Hardware</p>
-        <h2 data-i18n="hw.title">Kleine Hardware. Alles im Blick.</h2>
-        <p data-i18n="hw.sub">Du brauchst ein ESP32-Display aus der CYD-Serie oder das quadratische Guition ESP32-S3-4848S040 und ein USB-Datenkabel. Ein passendes Gehäuse kannst du dir selbst drucken.</p>
-      </div>
-
-      <div class="hardware-grid">
-        <article class="board-card">
-          <figure class="hardware-photo">
-            <img src="assets/display-chatgpt-side.jpg" alt="AI Monitor Display im 3D-gedruckten Gehäuse, seitlich auf dem Monitorfuß" data-i18n-alt="hw.img.alt" width="1600" height="1200" loading="lazy" decoding="async">
-          </figure>
-          <div class="board-copy">
-            <p class="eyebrow" data-i18n="hw.board.label">Das Display</p><h3>Cheap Yellow<br>Display.</h3><p class="board-model">ESP32-2432S028 / ESP32-2432S028R</p>
-            <p data-i18n="hw.board.p">2,8-Zoll-Farbdisplay mit Touchscreen und ESP32. Strom und Daten kommen über ein einziges USB-Kabel.</p>
-            <div class="tag-list">
-              <span class="tag">R-Board: ILI9341</span>
-              <span class="tag">Non-R: ST7789</span>
-              <span class="tag">320&nbsp;×&nbsp;240&nbsp;px</span>
-            </div>
-          </div>
-        </article>
-
-        <div class="support-stack">
-          <article class="plain-card">
-            <h3 data-i18n="hw.need.h">Das brauchst du</h3>
-            <ul>
-              <li><a href="https://de.aliexpress.com/item/1005007731775734.html" target="_blank" rel="noopener" data-i18n="hw.need.1">Cheap Yellow Display (2,8 Zoll) auf AliExpress ansehen</a></li>
-              <li><a href="https://de.aliexpress.com/item/1005008214679682.html" target="_blank" rel="noopener" data-i18n="hw.need.1b">Oder das quadratische ESP32-S3-4848S040 (4 Zoll) auf AliExpress ansehen</a></li>
-              <li data-i18n="hw.need.2">USB-Kabel mit Datenübertragung</li>
-              <li data-i18n="hw.need.3">Mac mit macOS 14 oder neuer — Apple Silicon oder Intel — oder Windows 10/11, 64 Bit</li>
-              <li data-i18n="hw.need.4">CodexBar (Mac) oder Win-CodexBar (Windows) mit mindestens einem eingerichteten KI-Dienst</li>
-            </ul>
-            <p class="need-guide"><a href="https://www.hackster.io/toby-marks/esp32-desk-display-for-claude-and-chatgpt-usage-limits-71d7e3" target="_blank" rel="noopener" data-i18n="hw.need.guide">Schritt-für-Schritt-Anleitung auf Hackster.io</a></p>
-          </article>
-          <article class="plain-card">
-            <h3 data-i18n="hw.case.h">Ein Gehäuse für deinen Schreibtisch</h3>
-            <figure class="case-photo">
-              <img src="assets/display-case-portrait.jpg" alt="AI Monitor Display im Hochformat-Gehäuse auf dem Schreibtisch, mit Claude-Limits als Balken" data-i18n-alt="hw.case.img.alt" width="1500" height="1200" loading="lazy" decoding="async">
-            </figure>
-            <div class="case-links">
-              <a class="case-link" href="https://makerworld.com/de/models/2583102-weather-station-pro-anemometer-esp32-2432s028-cyd#profileId-2849155" target="_blank" rel="noopener">
-                <span data-i18n="hw.case.landscape">Querformat · 3D-Druckdatei</span>
-                <strong>Weather Station Pro <span aria-hidden="true">↗</span></strong>
-              </a>
-              <a class="case-link" href="https://makerworld.com/de/models/1382304-aura-smart-weather-forecast-display?from=search#profileId-1430951" target="_blank" rel="noopener">
-                <span data-i18n="hw.case.portrait">Hochformat · 3D-Druckdatei</span>
-                <strong>Aura Smart Display <span aria-hidden="true">↗</span></strong>
-              </a>
-              <a class="case-link" href="https://makerworld.com/de/models/2581572-guition-esp32s3-4848s040-case-stand-v3#profileId-3013482" target="_blank" rel="noopener">
-                <span data-i18n="hw.case.s3">ESP32-S3-4848S040 · 3D-Druckdatei</span>
-                <strong>Case Stand V3 <span aria-hidden="true">↗</span></strong>
-              </a>
-            </div>
-          </article>
-        </div>
-      </div>
-
-      <article class="board-card board-s3">
-        <figure class="hardware-photo">
-          <img src="assets/display-s3-chatgpt.jpg" alt="Quadratisches Display ESP32-S3-4848S040 auf dem Tisch mit dem ChatGPT-Wochenlimit als Ring" data-i18n-alt="hw.s3.img.alt" width="1200" height="1600" loading="lazy" decoding="async">
-        </figure>
-        <div class="board-copy">
-          <p class="eyebrow" data-i18n="hw.s3.label">Das große Display</p><h3>4 Zoll.<br>Quadratisch.</h3><p class="board-model">Guition ESP32-S3-4848S040</p>
-          <p data-i18n="hw.s3.p">Mehr Platz für dein Wochenlimit: ein großer Ring mit Countdown und Reset-Zeitpunkt, darunter die Sitzung als Balken. Die Anzeige dreht sich passend dazu, auf welcher Seite das USB-Kabel steckt. Die App erkennt das Board und installiert die passende Firmware.</p>
-          <div class="tag-list">
-            <span class="tag">ESP32-S3</span>
-            <span class="tag">ST7701S</span>
-            <span class="tag">480&nbsp;×&nbsp;480&nbsp;px</span>
-          </div>
-        </div>
-      </article>
-
-      <div class="view-grid" aria-label="Darstellungen auf dem Display" data-i18n-aria="hw.views.label">
-        <figure class="view-card">
-          <div class="view-photo">
-            <img src="assets/display-view-rings.jpg" alt="Display in der Ring-Ansicht: ChatGPT-Wochenlimit bei 15 Prozent mit Restzeit" data-i18n-alt="hw.view.rings.alt" width="1500" height="1000" loading="lazy" decoding="async">
-          </div>
-          <figcaption>
-            <strong data-i18n="hw.view.rings.h">Ringe</strong>
-            <span data-i18n="hw.view.rings.p">Ein Limit groß im Fokus, darunter die Zeit bis zum Reset.</span>
-          </figcaption>
-        </figure>
-        <figure class="view-card">
-          <div class="view-photo">
-            <img src="assets/display-view-bars.jpg" alt="Display in der Balken-Ansicht: Claude-Limits für Sitzung, Woche und Modell untereinander" data-i18n-alt="hw.view.bars.alt" width="1500" height="1000" loading="lazy" decoding="async">
-          </div>
-          <figcaption>
-            <strong data-i18n="hw.view.bars.h">Balken</strong>
-            <span data-i18n="hw.view.bars.p">Mehrere Limits untereinander – Sitzung, Woche und Modell auf einen Blick.</span>
-          </figcaption>
-        </figure>
       </div>
     </section>
 
@@ -357,42 +374,73 @@
   var FW = (document.querySelector('[data-v="fw"]') || {}).textContent || "";
 
   var EN = {
+    "_title": "AI Monitor – Your AI limits at a glance",
+    "hw.cyd.title": "CYD · 2.8 inches",
+    "desk.s3.caption": "S3 · in the printed Case Stand V3",
+    "compact.portrait": "Claude on the CYD in portrait orientation",
+    "compact.landscape": "Claude on the CYD in landscape orientation",
+    "compact.copy": "Weekly and session usage as landscape rings or portrait bars. The layout adapts to the format.",
+    "compact.title": "The smaller CYD",
+    "detail.caption": "Rendered directly from the firmware · example data",
+    "detail.alt": "Claude on S3: weekly 22%, session 97%, Fable only 53%, reset and usage pace",
+    "detail.extra.p": "Two separate fields with percentage, progress bar and time left. Here: session and “Fable only”.",
+    "detail.extra.h": "Session and additional limit",
+    "detail.pace.p": "“On pace” means the share used is still below the share of the time window that has elapsed.",
+    "detail.pace.h": "Usage relative to elapsed time",
+    "detail.week.p": "The large ring shows usage. Next to it, you can see when your allowance resets.",
+    "detail.week.h": "Weekly limit",
+    "detail.intro": "When Claude supplies three limits, the S3 shows all three at once, together with the reset time and an indication of your usage pace.",
+    "detail.title": "What fits on the larger display",
+    "show.details": "Hardware & print files",
+    "show.print": "3D printed",
+    "show.case": "Case",
+    "show.connection": "Connection",
+    "show.resolution": "Resolution",
+    "show.loading": "Loading view…",
+    "hw.s3.title": "S3 · 4 inches",
+    "desk.note": "AI visualisations based on the devices. Colours are examples for 3D printing.",
+    "desk.s3.alt": "S3 with the full Claude view beside a keyboard",
+    "desk.cyd.caption": "CYD · below the monitor",
+    "desk.cyd.alt": "AI visualisation: a small CYD below a monitor on an uncluttered desk",
+    "desk.title": "On the desk",
+    "show.error": "The selected view could not be loaded. Please choose the colour again.",
+    "show.note": "AI visualisation · print your own case",
+    "color.terracotta": "Terracotta",
+    "color.graphite": "Graphite",
+    "color.blue": "Cobalt blue",
+    "show.colors": "Choose a case colour",
+    "show.color": "Case colour",
+    "show.model": "Choose a display",
+    "nav.displays": "Display",
     "brand.label": "AI Monitor home",
-    "hw.board.label": "The display",
+    "hw.board.label": "Compact",
     "dl.app.download": "Download for macOS ↓",
     "dl.app.download.win": "Download for Windows ↓",
     "dl.release.win": "Windows release notes",
     "dl.wintag": "Windows",
     "dl.win.unsigned": "The setup is not code-signed, so Windows SmartScreen warns on first launch: choose “More info”, then “Run anyway”.",
     "dl.cb.win": "Win-CodexBar for Windows",
-    "dl.app.role": "02 / The display connection",
-    "dl.cb.role": "01 / The data source",
+    "dl.app.role": "Connects computer and display",
+    "dl.cb.role": "Reads your usage limits",
     "providers.source": "Open source on GitHub",
-    "providers.label": "One display for your AI services",
-    "hero.visual.caption": "Connected to your Mac via USB",
-    "hero.visual.label": "A place for your usage limits.",
-    "hero.cta.setup": "How it works",
-    "hero.title.2": "Always in sight.",
-    "hero.title.1": "Your AI limits.",
-    "hero.eyebrow": "Small display. Clear head.",
+    "providers.label": "Supported services",
+    "hero.cta.setup": "How to set it up",
+    "hero.title.2": "a dedicated display.",
+    "hero.title.1": "AI usage on",
+    "hero.eyebrow": "An open-source project by Toby Marks",
     "nav.setup": "Setup",
     "skip": "Skip to content",
     "nav.label": "Main navigation",
     "nav.download": "Downloads",
     "nav.hardware": "Hardware",
-    "nav.help": "Help",
 
-    "hero.copy": "How much do you have left? AI Monitor keeps your Claude, ChatGPT, Gemini, Copilot, Cursor and Antigravity usage limits visible on a small display, right where you work.",
-    "hero.cta.app": "Download for Mac ↓",
-    "hero.note": "<strong>For macOS 14+, Apple Silicon and Intel.</strong> Requires CodexBar as its data source. Also <a href=\"#download\">for Windows 10 and 11</a>.",
+    "hero.copy": "AI Monitor shows your usage limits and reset times on a small ESP32 beside your computer. Data arrives over USB from your Mac or Windows PC.",
+    "hero.cta.app": "Download software",
+    "hero.note": "For <strong>Mac and Windows</strong>. Free &amp; open source.",
     "hero.meta.label": "Key facts",
-    "hero.meta.nowifi": "no Wi-Fi on the ESP32",
-    "hero.meta.fw": "Firmware",
-    "hero.meta.app": "App",
-    "hero.img.alt": "AI Monitor display in a printed case showing ChatGPT limits",
+    "hero.meta.nowifi": "Power & data over USB",
 
-    "setup.eyebrow": "Setup",
-    "setup.title": "Ready in four steps.",
+    "setup.title": "Setup",
     "setup.flow.label": "Setup steps",
     "setup.s1.h": "Set up CodexBar",
     "setup.s1.p": "Install CodexBar and sign in to the AI services whose limits you want to see.",
@@ -403,8 +451,7 @@
     "setup.s4.h": "Install the firmware",
     "setup.s4.p": "Select your display variant in the app, install the firmware and choose your AI service.",
 
-    "dl.eyebrow": "Downloads",
-    "dl.title": "Two apps. One clear picture.",
+    "dl.title": "The companion software",
     "dl.sub": "CodexBar retrieves your usage limits. The AI Monitor app sends them to your display over USB. You need both apps on your Mac or Windows PC.",
     "dl.cb.p": "Retrieves usage limits from your configured AI services and makes them available locally on your computer. On Windows, Win-CodexBar takes that role.",
     "dl.repo": "Repository",
@@ -423,10 +470,8 @@
     "dl.shot.menu.h": "Menu bar",
     "dl.shot.menu.p": "Switch AI service without opening a window.",
 
-    "hw.eyebrow": "Hardware",
-    "hw.title": "Small hardware. Clear overview.",
-    "hw.sub": "All you need is a CYD-series ESP32 display or the square Guition ESP32-S3-4848S040, plus a USB data cable. You can 3D-print a case to make it your own.",
-    "hw.img.alt": "AI Monitor display in a 3D-printed case, seen from the side on the monitor stand",
+    "hw.title": "Hardware and print files",
+    "hw.sub": "These two display families are supported. You also need a USB data cable; matching cases can be 3D printed.",
     "hw.board.p": "A 2.8-inch colour touchscreen with ESP32. A single USB cable carries both power and data.",
     "hw.need.h": "What you need",
     "hw.need.1": "View the Cheap Yellow Display (2.8 inch) on AliExpress",
@@ -435,18 +480,9 @@
     "hw.need.3": "A Mac running macOS 14 or newer — Apple Silicon or Intel — or Windows 10/11, 64-bit",
     "hw.need.4": "CodexBar (Mac) or Win-CodexBar (Windows) with at least one provider set up",
     "hw.need.guide": "Step-by-step build guide on Hackster.io",
-    "hw.s3.label": "The large display",
-    "hw.s3.p": "More room for your weekly limit: a large ring with countdown and reset time, with the session as a bar below. The view turns to match the side the USB cable plugs into. The app recognises the board and installs the matching firmware.",
-    "hw.s3.img.alt": "Square ESP32-S3-4848S040 display on a table, showing the ChatGPT weekly limit as a ring",
+    "hw.s3.label": "More display space",
+    "hw.s3.p": "480 × 480 pixels provide room for weekly usage, reset time and pace, plus two more limits. The fields shown depend on the data supplied by the AI service.",
     "hw.case.h": "A case for your desk",
-    "hw.case.img.alt": "AI Monitor display in a portrait case on the desk, showing Claude limits as bars",
-    "hw.views.label": "Views on the display",
-    "hw.view.rings.alt": "Display in ring view: ChatGPT weekly limit at 15 percent with time remaining",
-    "hw.view.rings.h": "Rings",
-    "hw.view.rings.p": "One limit front and centre, with the time until reset below.",
-    "hw.view.bars.alt": "Display in bar view: Claude limits for session, week and model stacked",
-    "hw.view.bars.h": "Bars",
-    "hw.view.bars.p": "Several limits stacked – session, week and model at a glance.",
     "hw.case.landscape": "Landscape · 3D print file",
     "hw.case.portrait": "Portrait · 3D print file",
     "hw.case.s3": "ESP32-S3-4848S040 · 3D print file",
@@ -474,7 +510,6 @@
     "footer.win": "Windows",
     "footer.legal": "Legal notice & privacy",
 
-    "_title": "AI Monitor – Your AI limits at a glance",
     "_desc": "AI Monitor shows Claude, ChatGPT, Antigravity, Gemini, Copilot and Cursor limits on a small ESP32 display. CodexBar supplies the data; the Mac or Windows app connects and flashes the display."
   };
 
@@ -531,6 +566,7 @@
     if (m && d) m.setAttribute("content", d);
 
     document.documentElement.lang = lang;
+    document.dispatchEvent(new Event("aimonitor:language"));
 
     document.querySelectorAll(".lang-switch button").forEach(function (b) {
       b.setAttribute("aria-pressed", String(b.getAttribute("data-lang") === lang));
@@ -552,6 +588,8 @@
     if (saved === "en" || saved === "de") return saved;
     return (navigator.language || "de").toLowerCase().indexOf("de") === 0 ? "de" : "en";
   }
+
+  document.addEventListener("aimonitor:history", function () { apply(initialLang()); });
 
   snapshot();
 
@@ -613,5 +651,6 @@
   }
 })();
 </script>
+<script src="assets/product.js"></script>
 </body>
 </html>
