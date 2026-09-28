@@ -265,7 +265,10 @@ final class DisplayPlugins {
             let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
             let now = Date()
             let retryAfter = record.error == nil ? interval : min(interval, 60)
-            if record.sceneLocale == locale,
+            // Nur fertige Szenen in der anderen Sprache sofort neu rendern. Nach
+            // einem Fehler gilt die Wartezeit, sonst ruft onChange -> refresh endlos ab.
+            let localeChanged = record.error == nil && record.sceneLocale != nil && record.sceneLocale != locale
+            if !localeChanged,
                let attempt = record.lastAttempt, now.timeIntervalSince(attempt) < retryAfter { continue }
             record.lastAttempt = now
             records[id] = record
