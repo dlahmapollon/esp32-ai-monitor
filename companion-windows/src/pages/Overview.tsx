@@ -1,4 +1,4 @@
-import { pluginText, type Language, type PercentMode, type PluginInfo, type ProviderInfo, type ProviderKey, type Settings, type Snapshot, type Status, type ViewContent } from "../api";
+import { pluginText, pluginViewLabel, type Language, type PercentMode, type PluginInfo, type ProviderInfo, type ProviderKey, type Settings, type Snapshot, type Status, type ViewContent } from "../api";
 import { formatAgo, formatCountdown } from "../format";
 import type { Translate } from "../i18n";
 
@@ -41,7 +41,7 @@ export default function Overview({ t, locale, now, snapshot, settings, providers
   const viewLabel = (view: ViewContent) => view.kind === "clock"
     ? t("views.clock")
     : view.kind === "plugin"
-      ? (() => { const plugin = plugins.find((plugin) => plugin.id === view.provider); return plugin ? pluginText(plugin, locale, plugin.viewLabel) : view.provider; })()
+      ? (() => { const plugin = plugins.find((plugin) => plugin.id === view.provider); return plugin ? pluginText(plugin, locale, plugin.viewLabel) : pluginViewLabel(view.provider); })()
       : providers.find((provider) => provider.key === view.provider)?.label ?? view.provider;
 
   return (

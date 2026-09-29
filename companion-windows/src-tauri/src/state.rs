@@ -3,6 +3,7 @@
 //! `poll` und `serial_service`).
 
 use crate::flash::FlashRecord;
+use crate::claude_code::ClaudeCode;
 use crate::plugins::PluginStore;
 use crate::serial_service::{ConnectionSnapshot, Job};
 use crate::settings::Settings;
@@ -26,6 +27,8 @@ pub struct AppState {
     pub tray: Mutex<Option<TrayIcon>>,
     pub registry: Mutex<DeviceRegistry>,
     pub plugins: Mutex<PluginStore>,
+    /// Fenster „Claude Code wartet“: Sessions, Empfang, Token.
+    pub claude_code: Mutex<ClaudeCode>,
     /// Zuletzt veröffentlichter Verbindungszustand, geschrieben vom Serial-Thread.
     pub connection: Mutex<ConnectionSnapshot>,
     /// Aufträge an den Serial-Thread.
@@ -61,6 +64,7 @@ impl AppState {
             tray: Mutex::new(None),
             registry: Mutex::new(registry),
             plugins: Mutex::new(plugins),
+            claude_code: Mutex::new(ClaudeCode::default()),
             connection: Mutex::new(ConnectionSnapshot::default()),
             serial,
             releases: Mutex::new(ReleaseCache::default()),

@@ -215,6 +215,10 @@ impl Manifest {
         if !valid_key(&self.id, 40) || !self.id.as_bytes()[0].is_ascii_lowercase() {
             return Err("invalid plugin ID".into());
         }
+        // Eingebaute Fenster wie `builtin.claude-code` belegen dieses Präfix.
+        if self.id.starts_with(crate::claude_code::RESERVED_PREFIX) {
+            return Err("reserved plugin ID".into());
+        }
         if !printable(&self.name, 60)
             || self.name.is_empty()
             || !printable(&self.author, 80)
@@ -676,6 +680,20 @@ fn validate_template_node(
     validate_wire_node(&sample)
 }
 
+/// Eine fertige Szene so prüfen, wie es die Firmware tut (ohne Byte-Grenze).
+#[cfg(test)]
+pub(crate) fn validate_scene_for_tests(scene: &Value) -> Result<(), String> {
+    let background = scene.get("background").and_then(Value::as_i64).ok_or("missing background")?;
+    if !(0..=0xFFFFFF).contains(&background) {
+        return Err("invalid background".into());
+    }
+    let nodes = scene.get("nodes").and_then(Value::as_array).ok_or("missing nodes")?;
+    if nodes.len() > MAX_SCENE_NODES {
+        return Err("too many nodes".into());
+    }
+    nodes.iter().try_for_each(validate_wire_node)
+}
+
 fn validate_wire_node(node: &Value) -> Result<(), String> {
     let kind = node
         .get("type")
@@ -1010,6 +1028,13 @@ mod tests {
         response["metric"]["state"] = json!(99);
         let scene = plugin.scene_localized(SceneLayout::Portrait, &response, &plugin.default_settings(), "de").unwrap();
         assert!(scene["nodes"].as_array().unwrap().iter().any(|n| n["text"] == "Unbekannt"));
+    }
+
+    #[test]
+    fn builtin_prefix_is_reserved() {
+        let mut plugin = fixture();
+        plugin.id = crate::claude_code::VIEW_ID.into();
+        assert_eq!(plugin.validate().unwrap_err(), "reserved plugin ID");
     }
 
     #[test]

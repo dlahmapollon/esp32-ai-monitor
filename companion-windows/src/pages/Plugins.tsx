@@ -5,6 +5,7 @@ import {
   pluginText, type PluginInfo, type PluginPreview,
 } from "../api";
 import type { Translate } from "../i18n";
+import ClaudeCodeCard from "./ClaudeCodeCard";
 
 interface Props {
   t: Translate;
@@ -116,6 +117,7 @@ export default function Plugins({ t, locale, plugins, onRefresh }: Props) {
     <section className="page">
       <header className="page-head"><h1>{t("nav.plugins")}</h1></header>
       <p className="muted">{t("plugins.intro")}</p>
+      <ClaudeCodeCard t={t} />
       <div className="card">
         <h3>{t("plugins.add")}</h3>
         <p className="muted small">{t("plugins.add.hint")}</p>

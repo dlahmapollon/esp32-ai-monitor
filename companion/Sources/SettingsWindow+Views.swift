@@ -15,8 +15,8 @@ extension SettingsWindowController {
     private var viewContents: [String] {
         let installed = DisplayPlugins.shared.records.keys.map { DisplayPlugins.prefix + $0 }
         let assigned = Settings.shared.displayViews.filter { DisplayPlugins.id(from: $0) != nil }
-        return [Settings.clockView] + CodexBarProvider.allCases.map(\.rawValue)
-            + Array(Set(installed + assigned)).sorted()
+        return [Settings.clockView] + CodexBarProvider.allCases.map(\.rawValue) + [ClaudeCodeWindow.view]
+            + Array(Set(installed + assigned).subtracting([ClaudeCodeWindow.view])).sorted()
     }
 
     func buildViewsStepContent() -> [NSView] {
@@ -89,6 +89,7 @@ extension SettingsWindowController {
 
     private func displayViewTitle(_ content: String) -> String {
         if content == Settings.clockView { return L("views.clock") }
+        if content == ClaudeCodeWindow.view { return ClaudeCodeWindow.label }
         if let id = DisplayPlugins.id(from: content) {
             return DisplayPlugins.shared.records[id] == nil
                 ? L("plugins.missing", id) : DisplayPlugins.shared.label(for: content)

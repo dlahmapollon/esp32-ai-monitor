@@ -883,22 +883,25 @@ impl Service {
                 } else {
                     SceneLayout::Portrait
                 };
-                let scene = self
-                    .app
-                    .state::<AppState>()
-                    .plugins
-                    .lock()
-                    .unwrap()
-                    .records
-                    .get(id)
-                    .map(|record| record.scene(layout, language, theme))
-                    .unwrap_or_else(|| {
-                        status_scene_with_theme(
-                            status_text("missing", language),
-                            status_text("missing.hint", language),
-                            theme,
-                        )
-                    });
+                let scene = if id == aimonitor_core::claude_code::VIEW_ID {
+                    crate::claude_code::scene(&self.app, language, theme, layout)
+                } else {
+                    self.app
+                        .state::<AppState>()
+                        .plugins
+                        .lock()
+                        .unwrap()
+                        .records
+                        .get(id)
+                        .map(|record| record.scene(layout, language, theme))
+                        .unwrap_or_else(|| {
+                            status_scene_with_theme(
+                                status_text("missing", language),
+                                status_text("missing.hint", language),
+                                theme,
+                            )
+                        })
+                };
                 let frame_id = self.frame_ids.next();
                 match scene_envelope(id, index, scene, frame_id) {
                     Ok(payload) => self.transmit(&info, payload, frame_id, "plugin", trigger),

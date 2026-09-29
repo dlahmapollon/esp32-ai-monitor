@@ -1,6 +1,7 @@
 //! Tauri-Hülle der AI-Monitor-App: Tray, Einstellungsfenster, Abrufzyklus.
 //! Die Fachlogik liegt in `aimonitor-core`.
 
+mod claude_code;
 mod commands;
 mod flash;
 mod plugins;
@@ -144,6 +145,7 @@ pub fn run() {
             if let Ok(action) = std::env::var("AIMONITOR_DEV_ACTION") {
                 dev_action(handle.clone(), action);
             }
+            claude_code::start(handle.clone());
             poll::start_timer(handle);
             Ok(())
         })
@@ -156,6 +158,8 @@ pub fn run() {
             commands::list_providers,
             commands::rescan_cli,
             commands::list_plugins,
+            claude_code::claude_code_status,
+            claude_code::claude_code_set_hooks,
             commands::inspect_plugin,
             commands::install_plugin,
             commands::configure_plugin,

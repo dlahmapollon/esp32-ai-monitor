@@ -115,6 +115,20 @@ export interface PluginInfo extends PluginPreview {
 }
 
 export const listPlugins = () => invoke<PluginInfo[]>("list_plugins");
+
+/** Eingebautes Fenster „Claude Code wartet“, Fensterschlüssel `plugin:builtin.claude-code`. */
+export const CLAUDE_CODE_VIEW = "builtin.claude-code";
+export const pluginViewLabel = (id: string) => id === CLAUDE_CODE_VIEW ? "Claude Code" : id;
+export interface ClaudeCodeStatus {
+  listener: "starting" | "running" | "failed";
+  error: string | null;
+  port: number;
+  hooks: "missing" | "installed" | "outdated" | null;
+  settingsPath: string | null;
+  waiting: { project: string; state: "permission" | "input" | "done"; since: number }[];
+}
+export const claudeCodeStatus = () => invoke<ClaudeCodeStatus>("claude_code_status");
+export const claudeCodeSetHooks = (install: boolean) => invoke<ClaudeCodeStatus>("claude_code_set_hooks", { install });
 export const inspectPlugin = (source: string) => invoke<PluginPreview>("inspect_plugin", { source });
 export const installPlugin = (source: string, expectedSha256: string) =>
   invoke<PluginInfo>("install_plugin", { source, expectedSha256 });

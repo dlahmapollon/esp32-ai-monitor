@@ -31,7 +31,7 @@ extension SettingsWindowController {
         pluginListStack.spacing = 18
         updatePluginsSection(force: true)
 
-        let stack = NSStackView(views: [heading, intro, sourceRow, pluginPreviewLabel,
+        let stack = NSStackView(views: [heading, intro, buildClaudeCodeBox(), sourceRow, pluginPreviewLabel,
                                         pluginInstallButton, pluginListStack])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -209,6 +209,105 @@ extension SettingsWindowController {
             updateViewsSection(force: true)
         } catch {
             pluginPreviewLabel.stringValue = error.localizedDescription
+        }
+    }
+
+    // MARK: Claude Code (Issue #10)
+
+    /// Eingebautes Fenster „Claude Code wartet“: Empfang, Hooks, wartende Sessions.
+    private func buildClaudeCodeBox() -> NSView {
+        let heading = makeSectionHeading(ClaudeCodeWindow.label)
+        let intro = NSTextField(wrappingLabelWithString: L("cc.intro"))
+        intro.font = NSFont.appFont(.subheadline)
+        intro.textColor = .secondaryLabelColor
+        intro.preferredMaxLayoutWidth = 520
+
+        claudeCodeListenerLabel = NSTextField(wrappingLabelWithString: "")
+        claudeCodeListenerLabel.font = NSFont.appFont(.subheadline)
+        claudeCodeHooksLabel = NSTextField(wrappingLabelWithString: "")
+        claudeCodeHooksLabel.font = NSFont.appFont(.subheadline)
+        claudeCodeHooksLabel.preferredMaxLayoutWidth = 520
+        claudeCodeWaitingLabel = NSTextField(wrappingLabelWithString: "")
+        claudeCodeWaitingLabel.font = NSFont.appFont(.subheadline)
+
+        claudeCodeInstallButton = NSButton(title: L("cc.install"), target: self, action: #selector(installClaudeCodeHooks))
+        claudeCodeRemoveButton = NSButton(title: L("cc.remove"), target: self, action: #selector(removeClaudeCodeHooks))
+        let buttons = NSStackView(views: [claudeCodeInstallButton, claudeCodeRemoveButton])
+        buttons.orientation = .horizontal
+        buttons.spacing = 8
+
+        let hint = NSTextField(wrappingLabelWithString: L("cc.window.hint"))
+        hint.font = NSFont.appFont(.subheadline)
+        hint.textColor = .secondaryLabelColor
+
+        ClaudeCodeWindow.shared.refreshHookStatus()
+        updateClaudeCodeSection()
+        let stack = NSStackView(views: [heading, intro, claudeCodeListenerLabel, claudeCodeHooksLabel,
+                                        buttons, claudeCodeWaitingLabel, hint])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        return stack
+    }
+
+    func updateClaudeCodeSection() {
+        guard claudeCodeListenerLabel != nil else { return }
+        let cc = ClaudeCodeWindow.shared
+        switch cc.listenerState {
+        case .running:
+            claudeCodeListenerLabel.stringValue = L("cc.listener.running", Int(ClaudeCodeWindow.port))
+            claudeCodeListenerLabel.textColor = .secondaryLabelColor
+        case .starting:
+            claudeCodeListenerLabel.stringValue = L("cc.listener.starting", Int(ClaudeCodeWindow.port))
+            claudeCodeListenerLabel.textColor = .secondaryLabelColor
+        case .failed(let message):
+            claudeCodeListenerLabel.stringValue = L("cc.listener.failed", Int(ClaudeCodeWindow.port), message)
+            claudeCodeListenerLabel.textColor = .systemRed
+        }
+        let hooks = cc.hookStatus ?? "missing"
+        claudeCodeHooksLabel.stringValue = L("cc.hooks.\(hooks)") + " · " + ClaudeCodeWindow.settingsURL.path
+        claudeCodeHooksLabel.textColor = hooks == "installed" ? .secondaryLabelColor : .systemOrange
+        claudeCodeInstallButton.isHidden = hooks == "installed"
+        claudeCodeRemoveButton.isHidden = hooks == "missing"
+
+        let now = Date()
+        let rows = cc.waiting(now: now).map { session -> String in
+            let state = session.waiting == .permission ? "permission" : session.waiting == .input ? "input" : "done"
+            let name = session.project.isEmpty ? ClaudeCodeWindow.label : session.project
+            let minutes = Int(now.timeIntervalSince(session.since) / 60)
+            return "\(name) · \(L("cc.state." + state)) · \(L("cc.minutes", minutes))"
+        }
+        claudeCodeWaitingLabel.stringValue = rows.isEmpty ? "" : L("cc.waiting") + "\n" + rows.joined(separator: "\n")
+        claudeCodeWaitingLabel.isHidden = rows.isEmpty
+    }
+
+    @objc private func installClaudeCodeHooks() {
+        confirmClaudeCodeHooks(install: true)
+    }
+
+    @objc private func removeClaudeCodeHooks() {
+        confirmClaudeCodeHooks(install: false)
+    }
+
+    private func confirmClaudeCodeHooks(install: Bool) {
+        let alert = NSAlert()
+        alert.messageText = L(install ? "cc.install.title" : "cc.remove.title")
+        alert.informativeText = L(install ? "cc.install.confirm" : "cc.remove.confirm",
+                                  ClaudeCodeWindow.settingsURL.path)
+        alert.addButton(withTitle: L(install ? "cc.install.ok" : "cc.remove.ok"))
+        alert.addButton(withTitle: L("plugins.cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        claudeCodeInstallButton.isEnabled = false
+        claudeCodeRemoveButton.isEnabled = false
+        ClaudeCodeWindow.shared.setHooks(install: install) { [weak self] error in
+            guard let self = self else { return }
+            self.claudeCodeInstallButton.isEnabled = true
+            self.claudeCodeRemoveButton.isEnabled = true
+            self.updateClaudeCodeSection()
+            if let error {
+                self.claudeCodeHooksLabel.stringValue = error.localizedDescription
+                self.claudeCodeHooksLabel.textColor = .systemRed
+            }
         }
     }
 }

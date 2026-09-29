@@ -18,7 +18,9 @@
 //! - [`envelope`]: Usage-, Notice- und Diagnose-Frames
 //! - [`device`]: Geräteprofile je MAC und ihre Registry
 //! - [`release`]: GitHub-Releases auswählen, Assets zuordnen, SHA-256 prüfen
+//! - [`claude_code`]: Fenster „Claude Code wartet“: Hook-Ereignisse, Szene, Hook-Einträge
 
+pub mod claude_code;
 pub mod codexbar;
 pub mod device;
 pub mod envelope;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { pluginText, type ConnectionSnapshot, type PluginInfo, type ProviderInfo, type Settings, type ViewContent } from "../api";
+import { CLAUDE_CODE_VIEW, pluginText, pluginViewLabel, type ConnectionSnapshot, type PluginInfo, type ProviderInfo, type Settings, type ViewContent } from "../api";
 import type { Translate } from "../i18n";
 
 interface Props {
@@ -41,10 +41,11 @@ export default function ViewManager({ t, locale, settings, providers, plugins, c
   const label = (content: ViewContent) => content.kind === "clock"
     ? t("views.clock")
     : content.kind === "plugin"
-      ? (() => { const plugin = plugins.find((p) => p.id === content.provider); return plugin ? pluginText(plugin, locale, plugin.viewLabel) : content.provider; })()
+      ? (() => { const plugin = plugins.find((p) => p.id === content.provider); return plugin ? pluginText(plugin, locale, plugin.viewLabel) : pluginViewLabel(content.provider); })()
       : providers.find((p) => p.key === content.provider)?.label ?? content.provider;
   const glyph = (content: ViewContent) => content.kind === "plugin"
-    ? "◇" : GLYPHS[content.kind === "clock" ? "clock" : content.provider];
+    ? content.provider === CLAUDE_CODE_VIEW ? GLYPHS.claude : "◇"
+    : GLYPHS[content.kind === "clock" ? "clock" : content.provider];
 
   const assign = (index: number, content: ViewContent) => {
     onSettings({
@@ -165,6 +166,7 @@ export default function ViewManager({ t, locale, settings, providers, plugins, c
           <h3>{t("views.blocks")}</h3>
           <p className="muted">{t("views.blocks.hint")}</p>
           {[CLOCK, ...providers.map((p): ViewContent => ({ kind: "provider", provider: p.key })),
+            { kind: "plugin", provider: CLAUDE_CODE_VIEW } as ViewContent,
             ...plugins.map((p): ViewContent => ({ kind: "plugin", provider: p.id }))].map((content) => (
             <button key={content.kind === "clock" ? "clock" : content.provider} type="button"
               onPointerDown={(e) => startDrag(e, content)}
