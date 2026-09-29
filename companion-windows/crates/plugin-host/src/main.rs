@@ -2,6 +2,7 @@
 //! executed: the package is a validated declarative manifest.
 
 use aimonitor_core::plugin::{Manifest, SceneLayout};
+use aimonitor_core::protocol::Theme;
 use aimonitor_core::plugin_package::{parse_package, MAX_PACKAGE_BYTES};
 use serde_json::{json, Map, Value};
 use std::env;
@@ -115,20 +116,39 @@ fn download_package(source: &str) -> Result<Vec<u8>, String> {
     Err("too many plugin redirects".into())
 }
 
-fn run() -> Result<Value, String> {
-    let mut args: Vec<String> = env::args().collect();
-    let locale = if args.last().is_some_and(|arg| arg.starts_with("--locale=")) {
-        let value = args.pop().unwrap();
-        let locale = value.trim_start_matches("--locale=");
-        if locale.is_empty() || locale.len() > 16 || !locale.bytes().all(|b| {
-            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'
-        }) {
-            return Err("invalid plugin locale".into());
+fn parse_arguments(raw_args: Vec<String>) -> Result<(Vec<String>, Theme, String), String> {
+    let mut args = Vec::with_capacity(raw_args.len());
+    let mut theme = None;
+    let mut locale = None;
+    for (index, arg) in raw_args.into_iter().enumerate() {
+        if index != 0 {
+            if let Some(value) = arg.strip_prefix("--theme=") {
+                if theme.is_some() {
+                    return Err("duplicate plugin theme".into());
+                }
+                theme = Some(Theme::parse(value).ok_or("invalid plugin theme")?);
+                continue;
+            }
+            if let Some(value) = arg.strip_prefix("--locale=") {
+                if locale.is_some() {
+                    return Err("duplicate plugin locale".into());
+                }
+                if value.is_empty() || value.len() > 16 || !value.bytes().all(|b| {
+                    b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'
+                }) {
+                    return Err("invalid plugin locale".into());
+                }
+                locale = Some(value.to_owned());
+                continue;
+            }
         }
-        locale.to_owned()
-    } else {
-        "en".to_owned()
-    };
+        args.push(arg);
+    }
+    Ok((args, theme.unwrap_or(Theme::Dark), locale.unwrap_or_else(|| "en".into())))
+}
+
+fn run() -> Result<Value, String> {
+    let (args, theme, locale) = parse_arguments(env::args().collect())?;
     if args.len() < 3 {
         return Err("usage: aimonitor-plugin-host inspect|render PACKAGE [SETTINGS] [portrait|landscape|square|all] [FIXTURE]".into());
     }
@@ -179,23 +199,14 @@ fn run() -> Result<Value, String> {
                 fetch(&package.manifest, &settings)?
             };
             if orientation == "all" {
-                let portrait = package.manifest.scene_localized(
-                    SceneLayout::Portrait,
-                    &data,
-                    &settings,
-                    &locale,
+                let portrait = package.manifest.scene_with_theme_and_locale(
+                    SceneLayout::Portrait, &data, &settings, theme, &locale,
                 )?;
-                let landscape = package.manifest.scene_localized(
-                    SceneLayout::Landscape,
-                    &data,
-                    &settings,
-                    &locale,
+                let landscape = package.manifest.scene_with_theme_and_locale(
+                    SceneLayout::Landscape, &data, &settings, theme, &locale,
                 )?;
-                let square = package.manifest.scene_localized(
-                    SceneLayout::Square,
-                    &data,
-                    &settings,
-                    &locale,
+                let square = package.manifest.scene_with_theme_and_locale(
+                    SceneLayout::Square, &data, &settings, theme, &locale,
                 )?;
                 Ok(
                     json!({"scenes": {"portrait": portrait, "landscape": landscape, "square": square}}),
@@ -206,9 +217,9 @@ fn run() -> Result<Value, String> {
                     "square" => SceneLayout::Square,
                     _ => SceneLayout::Portrait,
                 };
-                let scene = package
-                    .manifest
-                    .scene_localized(layout, &data, &settings, &locale)?;
+                let scene = package.manifest.scene_with_theme_and_locale(
+                    layout, &data, &settings, theme, &locale,
+                )?;
                 Ok(json!({"scene": scene}))
             }
         }
@@ -222,6 +233,40 @@ fn main() {
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_and_locale_options_work_in_either_order_and_any_position() {
+        let expected = vec!["host", "render", "package", "-", "all", "fixture"];
+        for first in 1..=expected.len() {
+            for second in 1..=expected.len() + 1 {
+                let mut input = expected.clone();
+                input.insert(first, "--theme=light");
+                input.insert(second, "--locale=de");
+                let (args, theme, locale) =
+                    parse_arguments(input.into_iter().map(str::to_owned).collect()).unwrap();
+                assert_eq!(args, expected);
+                assert_eq!(theme, Theme::Light);
+                assert_eq!(locale, "de");
+            }
+        }
+        let default = parse_arguments(expected.iter().map(|s| s.to_string()).collect()).unwrap();
+        assert_eq!(default.1, Theme::Dark);
+        assert_eq!(default.2, "en");
+        for options in [
+            vec!["--theme=light", "--theme=dark"],
+            vec!["--locale=de", "--locale=en"],
+            vec!["--theme=unknown"],
+            vec!["--locale=DE"],
+        ] {
+            let input = std::iter::once("host").chain(options).map(str::to_owned).collect();
+            assert!(parse_arguments(input).is_err());
         }
     }
 }

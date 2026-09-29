@@ -47,4 +47,10 @@ enum StrId {
 // Get localized string
 const char* L(StrId id);
 
+// Zeilentitel kommen englisch von der App bzw. CodexBar ("Session",
+// "Fable only"). Liefert fuer Deutsch die uebersetzte Form, sonst den Titel
+// unveraendert. Das Ergebnis liegt in einem internen Puffer und gilt nur bis
+// zum naechsten Aufruf — direkt an lv_label_set_text() weitergeben.
+const char* L_row_title(const char *title);
+
 #endif

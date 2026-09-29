@@ -4,6 +4,7 @@
  * both desktop apps use the same public package contract.
  */
 
+import AppKit
 import Foundation
 
 struct DisplayPluginRecord {
@@ -16,6 +17,7 @@ struct DisplayPluginRecord {
     var lastAttempt: Date?
     var error: String?
     var sceneLocale: String?
+    var sceneTheme: String?
 }
 
 final class DisplayPlugins {
@@ -31,6 +33,16 @@ final class DisplayPlugins {
         let locale = locale ?? (Bundle.main.preferredLocalizations.first?.hasPrefix("de") == true ? "de" : "en")
         let dictionaries = info["localizations"] as? [String: [String: String]]
         return dictionaries?[locale]?[source] ?? source
+    }
+
+    static func resolvedTheme() -> String {
+        switch Settings.shared.themeMode {
+        case "dark": return "dark"
+        case "light": return "light"
+        default:
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? "dark" : "light"
+        }
     }
 
     private init() {
@@ -259,16 +271,19 @@ final class DisplayPlugins {
 
     func refresh(views: [String]) {
         let locale = Settings.shared.language == "en" ? "en" : "de"
+        let theme = Self.resolvedTheme()
         for id in Set(views.compactMap(Self.id(from:))) {
             guard var record = records[id] else { continue }
             guard !fetching.contains(id) else { continue }
             let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
             let now = Date()
             let retryAfter = record.error == nil ? interval : min(interval, 60)
-            // Nur fertige Szenen in der anderen Sprache sofort neu rendern. Nach
-            // einem Fehler gilt die Wartezeit, sonst ruft onChange -> refresh endlos ab.
-            let localeChanged = record.error == nil && record.sceneLocale != nil && record.sceneLocale != locale
-            if !localeChanged,
+            // Nur fertige Szenen ohne Fehler sofort neu rendern. Nach Fehlern
+            // gilt die Wartezeit, sonst kann onChange eine Abrufschleife auslösen.
+            let sceneChanged = record.error == nil && record.fetchedAt != nil &&
+                record.sceneLocale != nil && record.sceneTheme != nil &&
+                (record.sceneLocale != locale || record.sceneTheme != theme)
+            if !sceneChanged,
                let attempt = record.lastAttempt, now.timeIntervalSince(attempt) < retryAfter { continue }
             record.lastAttempt = now
             records[id] = record
@@ -277,7 +292,8 @@ final class DisplayPlugins {
             let settings = settingsPath(id).path
             let generation = record.generation
             DispatchQueue.global(qos: .utility).async {
-                let result = Result { try Self.helper(["render", package, settings, "all", "--locale=\(locale)"]) }
+                let result = Result { try Self.helper(["render", package, settings, "all",
+                                                        "--theme=\(theme)", "--locale=\(locale)"]) }
                 DispatchQueue.main.async {
                     self.fetching.remove(id)
                     guard var current = self.records[id], current.packageURL.path == package,
@@ -289,6 +305,7 @@ final class DisplayPlugins {
                            scenes["square"] != nil {
                             current.scenes = scenes
                             current.sceneLocale = locale
+                            current.sceneTheme = theme
                             current.fetchedAt = Date()
                             current.error = nil
                         } else {
@@ -299,7 +316,8 @@ final class DisplayPlugins {
                     }
                     self.records[id] = current
                     self.onChange?()
-                    if Settings.shared.language != locale {
+                    if Self.resolvedTheme() != theme ||
+                       (Settings.shared.language == "en" ? "en" : "de") != locale {
                         self.refresh(views: Settings.shared.displayViews)
                     }
                 }
@@ -308,18 +326,20 @@ final class DisplayPlugins {
     }
 
     func scene(for id: String, layout: String, language: String) -> [String: Any] {
+        let theme = Self.resolvedTheme()
         let text = { (key: String) in Self.statusText(key, language: language) }
         guard let record = records[id] else {
-            return Self.statusScene(text("missing"), text("missing.hint"))
+            return Self.statusScene(text("missing"), text("missing.hint"), theme: theme)
         }
         let title = Self.localized(record.info["viewLabel"] as? String ?? "Plugin", info: record.info, locale: language)
-        if record.error != nil { return Self.statusScene(title, text("unavailable")) }
+        if record.error != nil { return Self.statusScene(title, text("unavailable"), theme: theme) }
+        // Bei einem Theme- oder Sprachwechsel die vorhandene Szene bis zur neuen Antwort stehen lassen.
         guard let scene = record.scenes[layout], let fetched = record.fetchedAt else {
-            return Self.statusScene(title, text("loading"))
+            return Self.statusScene(title, text("loading"), theme: theme)
         }
         let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
         if Date().timeIntervalSince(fetched) > interval * 3 {
-            return Self.statusScene(title, text("stale"))
+            return Self.statusScene(title, text("stale"), theme: theme)
         }
         return scene
     }
@@ -338,14 +358,15 @@ final class DisplayPlugins {
         }
     }
 
-    static func statusScene(_ title: String, _ message: String) -> [String: Any] {
-        ["background": 1580575, "nodes": [
+    static func statusScene(_ title: String, _ message: String, theme: String) -> [String: Any] {
+        let light = theme == "light"
+        return ["background": light ? 0xF5F7FA : 1580575, "nodes": [
             ["type": "text", "x": 50, "y": 75, "w": 900, "h": 120,
-             "color": 16777215, "font": 24, "text": String(title.prefix(40))],
+             "color": light ? 0x17212F : 16777215, "font": 24, "text": String(title.prefix(40))],
             ["type": "rect", "x": 50, "y": 210, "w": 900, "h": 3,
-             "color": 3717119],
+             "color": light ? 0xD4DDE7 : 3717119],
             ["type": "text", "x": 50, "y": 300, "w": 900, "h": 180,
-             "color": 11250603, "font": 16, "text": String(message.prefix(60))]
+             "color": light ? 0x45566A : 11250603, "font": 16, "text": String(message.prefix(60))]
         ]]
     }
 }

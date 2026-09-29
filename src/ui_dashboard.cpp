@@ -183,7 +183,7 @@ static bool long_press_handled = false;
 // Placeholder row titles while the compact rows are created (before any
 // frame arrived). At render time the titles come from the active provider.
 static const char* ag_default_title(uint8_t idx) {
-    return default_row_title_for_provider(PROVIDER_ANTIGRAVITY, idx);
+    return L_row_title(default_row_title_for_provider(PROVIDER_ANTIGRAVITY, idx));
 }
 
 // ============================================================
@@ -603,7 +603,9 @@ static int16_t create_usage_block(
     pace_tick_create_bar(*out_tick, parent, 12, y_start + 76, bar_w, 12);
 
     *out_reset_lbl = lv_label_create(parent);
-    lv_label_set_text(*out_reset_lbl, "Resets in --");
+    char reset_buf[32];
+    snprintf(reset_buf, sizeof(reset_buf), L(STR_RESETS_IN), "--");
+    lv_label_set_text(*out_reset_lbl, reset_buf);
     lv_obj_set_style_text_color(*out_reset_lbl, UI_COLOR_TEXT_SEC, LV_PART_MAIN);
     lv_obj_set_style_text_font(*out_reset_lbl, &lv_font_montserrat_12, LV_PART_MAIN);
     lv_obj_set_pos(*out_reset_lbl, 0, y_start + 94);
@@ -1451,9 +1453,9 @@ static uint8_t hero_row_index(const UsageData &u) {
 }
 
 static const char *row_title(const MonitorState &state, uint8_t i) {
-    return state.usage.row_title[i][0] != '\0'
+    return L_row_title(state.usage.row_title[i][0] != '\0'
         ? state.usage.row_title[i]
-        : default_row_title_for_provider(state.provider, i);
+        : default_row_title_for_provider(state.provider, i));
 }
 
 static void update_square_hero(const MonitorState &state) {
@@ -1622,7 +1624,7 @@ void ui_dashboard_update(const MonitorState &state) {
 
         if (uses_single_arc) {
             const char *title = state.usage.row_title[0][0] != '\0'
-                ? state.usage.row_title[0] : L(STR_WEEKLY);
+                ? L_row_title(state.usage.row_title[0]) : L(STR_WEEKLY);
             lv_label_set_text(lbl_single_title, title);
             format_percentage(state.usage.row_utilization[0], buf, sizeof(buf));
             lv_label_set_text(lbl_single_pct, buf);
@@ -1774,7 +1776,7 @@ void ui_dashboard_update(const MonitorState &state) {
                 pace_tick_hide(ag_tick[i]);
                 if (!first_row) continue;
 
-                lv_label_set_text(ag_title[i], default_row_title_for_provider(state.provider, i));
+                lv_label_set_text(ag_title[i], L_row_title(default_row_title_for_provider(state.provider, i)));
                 lv_label_set_text(ag_pct[i], pct_placeholder);
                 lv_label_set_text(ag_reset[i], state.usage.error);
                 if (ag_bar[i]) lv_bar_set_value(ag_bar[i], 0, LV_ANIM_OFF);

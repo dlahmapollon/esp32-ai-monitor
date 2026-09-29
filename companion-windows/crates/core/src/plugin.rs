@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use crate::protocol::Theme;
 use std::collections::{BTreeMap, HashSet};
 use url::Url;
 
@@ -65,6 +66,10 @@ pub fn status_text(key: &str, language: crate::protocol::Language) -> &'static s
 }
 
 pub fn status_scene(title: &str, message: &str) -> Value {
+    status_scene_with_theme(title, message, Theme::Dark)
+}
+
+pub fn status_scene_with_theme(title: &str, message: &str, theme: Theme) -> Value {
     let title = if printable(title, 40) {
         title
     } else {
@@ -75,12 +80,16 @@ pub fn status_scene(title: &str, message: &str) -> Value {
     } else {
         "Unavailable"
     };
+    let (background, primary, secondary, divider) = match theme {
+        Theme::Dark => (1580575, 16777215, 11250603, 3717119),
+        Theme::Light => (0xF5F7FA, 0x17212F, 0x45566A, 0xD4DDE7),
+    };
     json!({
-        "background": 1580575,
+        "background": background,
         "nodes": [
-            {"type":"text","x":50,"y":75,"w":900,"h":120,"color":16777215,"font":24,"text":title},
-            {"type":"rect","x":50,"y":210,"w":900,"h":3,"color":3717119},
-            {"type":"text","x":50,"y":300,"w":900,"h":180,"color":11250603,"font":16,"text":message}
+            {"type":"text","x":50,"y":75,"w":900,"h":120,"color":primary,"font":24,"text":title},
+            {"type":"rect","x":50,"y":210,"w":900,"h":3,"color":divider},
+            {"type":"text","x":50,"y":300,"w":900,"h":180,"color":secondary,"font":16,"text":message}
         ]
     })
 }
@@ -105,6 +114,8 @@ pub struct Manifest {
     /// Missing locales and entries use the manifest's original text.
     #[serde(default)]
     pub localizations: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(default)]
+    pub light_scenes: Option<SceneVariants>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -283,15 +294,17 @@ impl Manifest {
                 }
             }
         }
-        for scene in [&self.scenes.portrait, &self.scenes.landscape]
-            .into_iter()
-            .chain(self.scenes.square.as_ref())
-        {
-            if scene.background > 0xFFFFFF || scene.nodes.len() > MAX_SCENE_NODES {
-                return Err("invalid scene bounds".into());
-            }
-            for node in &scene.nodes {
-                validate_template_node(node, &names, &self.bindings)?;
+        for variants in std::iter::once(&self.scenes).chain(self.light_scenes.as_ref()) {
+            for scene in [&variants.portrait, &variants.landscape]
+                .into_iter()
+                .chain(variants.square.as_ref())
+            {
+                if scene.background > 0xFFFFFF || scene.nodes.len() > MAX_SCENE_NODES {
+                    return Err("invalid scene bounds".into());
+                }
+                for node in &scene.nodes {
+                    validate_template_node(node, &names, &self.bindings)?;
+                }
             }
         }
         if self.localizations.len() > 16
@@ -320,15 +333,17 @@ impl Manifest {
                     }
                 }
             }
-            for scene in [&self.scenes.portrait, &self.scenes.landscape]
-                .into_iter()
-                .chain(self.scenes.square.as_ref())
-            {
-                for node in &scene.nodes {
-                    if let Some(source) = node.get("text").and_then(Value::as_str) {
-                        let mut translated = node.clone();
-                        translated["text"] = json!(self.localized(locale, source));
-                        validate_template_node(&translated, &names, &self.bindings)?;
+            for variants in std::iter::once(&self.scenes).chain(self.light_scenes.as_ref()) {
+                for scene in [&variants.portrait, &variants.landscape]
+                    .into_iter()
+                    .chain(variants.square.as_ref())
+                {
+                    for node in &scene.nodes {
+                        if let Some(source) = node.get("text").and_then(Value::as_str) {
+                            let mut translated = node.clone();
+                            translated["text"] = json!(self.localized(locale, source));
+                            validate_template_node(&translated, &names, &self.bindings)?;
+                        }
                     }
                 }
             }
@@ -384,7 +399,7 @@ impl Manifest {
         data: &Value,
         settings: &Map<String, Value>,
     ) -> Result<Value, String> {
-        self.scene_localized(layout, data, settings, "en")
+        self.scene_with_theme_and_locale(layout, data, settings, Theme::Dark, "en")
     }
 
     pub fn scene_localized(
@@ -392,6 +407,27 @@ impl Manifest {
         layout: SceneLayout,
         data: &Value,
         settings: &Map<String, Value>,
+        locale: &str,
+    ) -> Result<Value, String> {
+        self.scene_with_theme_and_locale(layout, data, settings, Theme::Dark, locale)
+    }
+
+    pub fn scene_with_theme(
+        &self,
+        layout: SceneLayout,
+        data: &Value,
+        settings: &Map<String, Value>,
+        theme: Theme,
+    ) -> Result<Value, String> {
+        self.scene_with_theme_and_locale(layout, data, settings, theme, "en")
+    }
+
+    pub fn scene_with_theme_and_locale(
+        &self,
+        layout: SceneLayout,
+        data: &Value,
+        settings: &Map<String, Value>,
+        theme: Theme,
         locale: &str,
     ) -> Result<Value, String> {
         for setting in &self.settings {
@@ -426,10 +462,15 @@ impl Manifest {
             }
             values.insert(binding.name.as_str(), formatted);
         }
+        let scenes = if theme == Theme::Light {
+            self.light_scenes.as_ref().unwrap_or(&self.scenes)
+        } else {
+            &self.scenes
+        };
         let template = match layout {
-            SceneLayout::Portrait => &self.scenes.portrait,
-            SceneLayout::Landscape => &self.scenes.landscape,
-            SceneLayout::Square => self.scenes.square.as_ref().unwrap_or(&self.scenes.portrait),
+            SceneLayout::Portrait => &scenes.portrait,
+            SceneLayout::Landscape => &scenes.landscape,
+            SceneLayout::Square => scenes.square.as_ref().unwrap_or(&scenes.portrait),
         };
         let mut nodes = Vec::new();
         for node in &template.nodes {
@@ -780,6 +821,68 @@ mod tests {
     }
 
     #[test]
+    fn unknown_placeholder_is_rejected_without_localizations() {
+        let mut plugin = fixture();
+        assert!(plugin.localizations.is_empty());
+        plugin.scenes.portrait.nodes[6]["text"] = json!("Level {{unknown}}%");
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn localized_light_scene_text_is_rendered_and_validated() {
+        let mut plugin = fixture();
+        let mut light = plugin.scenes.clone();
+        light.portrait.nodes[6]["text"] = json!("Light {{level}}%");
+        plugin.light_scenes = Some(light);
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Light {{level}}%".into(), "Hell {{level}}%".into()),
+        ]));
+        plugin.validate().unwrap();
+        let response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        let scene = plugin.scene_with_theme_and_locale(
+            SceneLayout::Portrait, &response, &plugin.default_settings(), Theme::Light, "de",
+        ).unwrap();
+        assert!(scene["nodes"].as_array().unwrap().iter().any(|n| n["text"] == "Hell 62%"));
+
+        plugin.localizations.get_mut("de").unwrap().insert(
+            "Light {{level}}%".into(), "Hell {{unknown}}%".into(),
+        );
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn light_scenes_select_each_layout_and_legacy_plugins_fall_back() {
+        let mut plugin = fixture();
+        let settings = plugin.default_settings();
+        let response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        let legacy_light = plugin.scene_with_theme(SceneLayout::Portrait, &response, &settings, Theme::Light).unwrap();
+        let legacy_dark = plugin.scene(SceneLayout::Portrait, &response, &settings).unwrap();
+        assert_eq!(legacy_light, legacy_dark);
+
+        let mut light = plugin.scenes.clone();
+        light.portrait.background = 0xF5F7FA;
+        light.landscape.background = 0xF0F4F8;
+        light.square.as_mut().unwrap().background = 0xFFFFFF;
+        plugin.light_scenes = Some(light);
+        plugin.validate().unwrap();
+        for (layout, expected) in [
+            (SceneLayout::Portrait, 0xF5F7FA),
+            (SceneLayout::Landscape, 0xF0F4F8),
+            (SceneLayout::Square, 0xFFFFFF),
+        ] {
+            let scene = plugin.scene_with_theme(layout, &response, &settings, Theme::Light).unwrap();
+            assert_eq!(scene["background"], expected);
+        }
+        assert_eq!(plugin.scene(SceneLayout::Portrait, &response, &settings).unwrap()["background"], legacy_dark["background"]);
+        plugin.light_scenes.as_mut().unwrap().portrait.nodes[0]["color"] = json!(0x1_000000);
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
     fn localized_map_fallback_keeps_existing_suffix_behavior() {
         let mut plugin = fixture();
         let state = plugin.bindings.iter_mut().find(|b| b.name == "state").unwrap();
@@ -793,6 +896,14 @@ mod tests {
         response["metric"]["state"] = json!(99);
         let scene = plugin.scene_localized(SceneLayout::Portrait, &response, &plugin.default_settings(), "de").unwrap();
         assert!(scene["nodes"].as_array().unwrap().iter().any(|n| n["text"] == "Unbekannt"));
+    }
+
+    #[test]
+    fn status_scene_follows_theme() {
+        let dark = status_scene("Plugin", "Loading");
+        let light = status_scene_with_theme("Plugin", "Loading", Theme::Light);
+        assert_ne!(dark["background"], light["background"]);
+        assert_ne!(dark["nodes"][0]["color"], light["nodes"][0]["color"]);
     }
 
     #[test]
