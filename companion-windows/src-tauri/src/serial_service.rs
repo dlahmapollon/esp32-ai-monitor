@@ -16,7 +16,7 @@ use crate::tray;
 use aimonitor_core::envelope::{
     diagnostic_envelope, notice_envelope, usage_envelope, FrameContext,
 };
-use aimonitor_core::plugin::{scene_envelope, status_scene, status_text, SceneLayout};
+use aimonitor_core::plugin::{scene_envelope, status_scene_with_theme, status_text, SceneLayout};
 use aimonitor_core::protocol::{
     Command, DisplayVariant, FrameIdCounter, Language, Orientation, ThemeSetting, DIAGNOSTIC_AFTER_CONNECT,
     DIAGNOSTIC_RESTORE, GET_INFO_TIMEOUT, HEARTBEAT_INTERVAL, LATE_INFO_WINDOW,
@@ -853,6 +853,10 @@ impl Service {
                     .as_ref()
                     .map(|p| p.language)
                     .unwrap_or_default();
+                let theme = self.profile.as_ref()
+                    .map(|profile| profile.theme)
+                    .unwrap_or_default()
+                    .resolve(system_is_dark());
                 let layout = if info.display == Some(DisplayVariant::St7701) {
                     SceneLayout::Square
                 } else if matches!(
@@ -871,11 +875,12 @@ impl Service {
                     .unwrap()
                     .records
                     .get(id)
-                    .map(|record| record.scene(layout, language))
+                    .map(|record| record.scene(layout, language, theme))
                     .unwrap_or_else(|| {
-                        status_scene(
+                        status_scene_with_theme(
                             status_text("missing", language),
                             status_text("missing.hint", language),
+                            theme,
                         )
                     });
                 let frame_id = self.frame_ids.next();

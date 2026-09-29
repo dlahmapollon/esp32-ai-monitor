@@ -54,6 +54,16 @@ decimal RGB `background` from 0 to 16777215 and up to 24 `nodes`. Coordinates
 `x`, `y`, `w`, and `h` use a 0–1000 grid relative to the display; each node
 must fit inside it. A rendered scene may be at most 1536 JSON bytes.
 
+The required `scenes` are the dark/default appearance. An optional
+`lightScenes` object has the same portrait, landscape, and optional square
+layout structure. When the device profile resolves to light mode, the
+companion renders `lightScenes`; without it, existing plugins continue to use
+`scenes`. This also works when the profile follows the operating system theme.
+Keep every light layout within the same node, text, coordinate, and frame
+limits. The companion uses matching light colors for loading and error scenes.
+Companions released before this extension reject manifests containing
+`lightScenes`.
+
 Every node has `type`, geometry, and decimal RGB `color`. Supported types are
 `text`, `rect`, `circle`, and `bar`. Text nodes add `text`, optional `font`
 (`12`, `14`, `16`, `20`, `24`, `36`, or `48`), and optional `align` (`left`,
@@ -84,8 +94,11 @@ cargo run --quiet --manifest-path companion-windows/Cargo.toml \
   -p aimonitor-plugin-host -- inspect path/to/my-plugin.aimplugin
 cargo run --quiet --manifest-path companion-windows/Cargo.toml \
   -p aimonitor-plugin-host -- render path/to/my-plugin.aimplugin - all path/to/response.json
+cargo run --quiet --manifest-path companion-windows/Cargo.toml \
+  -p aimonitor-plugin-host -- render path/to/my-plugin.aimplugin - all path/to/response.json --theme=light
 ```
 
+The optional `--theme=dark|light` flag can appear before or after the positional arguments.
 `render` accepts a local JSON response fixture, so layout changes can be
 checked without calling the live API. Also test a live request by omitting the
 fixture path. Inspect the rendered nodes for all three layouts, then install

@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use crate::protocol::Theme;
 use std::collections::{BTreeMap, HashSet};
 use url::Url;
 
@@ -65,6 +66,10 @@ pub fn status_text(key: &str, language: crate::protocol::Language) -> &'static s
 }
 
 pub fn status_scene(title: &str, message: &str) -> Value {
+    status_scene_with_theme(title, message, Theme::Dark)
+}
+
+pub fn status_scene_with_theme(title: &str, message: &str, theme: Theme) -> Value {
     let title = if printable(title, 40) {
         title
     } else {
@@ -75,12 +80,16 @@ pub fn status_scene(title: &str, message: &str) -> Value {
     } else {
         "Unavailable"
     };
+    let (background, primary, secondary, divider) = match theme {
+        Theme::Dark => (1580575, 16777215, 11250603, 3717119),
+        Theme::Light => (0xF5F7FA, 0x17212F, 0x45566A, 0xD4DDE7),
+    };
     json!({
-        "background": 1580575,
+        "background": background,
         "nodes": [
-            {"type":"text","x":50,"y":75,"w":900,"h":120,"color":16777215,"font":24,"text":title},
-            {"type":"rect","x":50,"y":210,"w":900,"h":3,"color":3717119},
-            {"type":"text","x":50,"y":300,"w":900,"h":180,"color":11250603,"font":16,"text":message}
+            {"type":"text","x":50,"y":75,"w":900,"h":120,"color":primary,"font":24,"text":title},
+            {"type":"rect","x":50,"y":210,"w":900,"h":3,"color":divider},
+            {"type":"text","x":50,"y":300,"w":900,"h":180,"color":secondary,"font":16,"text":message}
         ]
     })
 }
@@ -101,6 +110,8 @@ pub struct Manifest {
     pub settings: Vec<Setting>,
     pub bindings: Vec<Binding>,
     pub scenes: SceneVariants,
+    #[serde(default)]
+    pub light_scenes: Option<SceneVariants>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -279,15 +290,17 @@ impl Manifest {
                 }
             }
         }
-        for scene in [&self.scenes.portrait, &self.scenes.landscape]
-            .into_iter()
-            .chain(self.scenes.square.as_ref())
-        {
-            if scene.background > 0xFFFFFF || scene.nodes.len() > MAX_SCENE_NODES {
-                return Err("invalid scene bounds".into());
-            }
-            for node in &scene.nodes {
-                validate_template_node(node, &names, &self.bindings)?;
+        for variants in std::iter::once(&self.scenes).chain(self.light_scenes.as_ref()) {
+            for scene in [&variants.portrait, &variants.landscape]
+                .into_iter()
+                .chain(variants.square.as_ref())
+            {
+                if scene.background > 0xFFFFFF || scene.nodes.len() > MAX_SCENE_NODES {
+                    return Err("invalid scene bounds".into());
+                }
+                for node in &scene.nodes {
+                    validate_template_node(node, &names, &self.bindings)?;
+                }
             }
         }
         Ok(())
@@ -333,6 +346,16 @@ impl Manifest {
         data: &Value,
         settings: &Map<String, Value>,
     ) -> Result<Value, String> {
+        self.scene_with_theme(layout, data, settings, Theme::Dark)
+    }
+
+    pub fn scene_with_theme(
+        &self,
+        layout: SceneLayout,
+        data: &Value,
+        settings: &Map<String, Value>,
+        theme: Theme,
+    ) -> Result<Value, String> {
         for setting in &self.settings {
             validate_setting(
                 setting,
@@ -352,10 +375,15 @@ impl Manifest {
             }
             values.insert(binding.name.as_str(), formatted);
         }
+        let scenes = if theme == Theme::Light {
+            self.light_scenes.as_ref().unwrap_or(&self.scenes)
+        } else {
+            &self.scenes
+        };
         let template = match layout {
-            SceneLayout::Portrait => &self.scenes.portrait,
-            SceneLayout::Landscape => &self.scenes.landscape,
-            SceneLayout::Square => self.scenes.square.as_ref().unwrap_or(&self.scenes.portrait),
+            SceneLayout::Portrait => &scenes.portrait,
+            SceneLayout::Landscape => &scenes.landscape,
+            SceneLayout::Square => scenes.square.as_ref().unwrap_or(&scenes.portrait),
         };
         let mut nodes = Vec::new();
         for node in &template.nodes {
@@ -635,6 +663,44 @@ mod tests {
                 .any(|n| n["text"].as_str().is_some_and(|s| s.contains("18 pts"))));
             assert!(nodes.iter().any(|n| n["type"] == "bar" && n["value"] == 62));
         }
+    }
+
+    #[test]
+    fn light_scenes_select_each_layout_and_legacy_plugins_fall_back() {
+        let mut plugin = fixture();
+        let settings = plugin.default_settings();
+        let response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        let legacy_light = plugin.scene_with_theme(SceneLayout::Portrait, &response, &settings, Theme::Light).unwrap();
+        let legacy_dark = plugin.scene(SceneLayout::Portrait, &response, &settings).unwrap();
+        assert_eq!(legacy_light, legacy_dark);
+
+        let mut light = plugin.scenes.clone();
+        light.portrait.background = 0xF5F7FA;
+        light.landscape.background = 0xF0F4F8;
+        light.square.as_mut().unwrap().background = 0xFFFFFF;
+        plugin.light_scenes = Some(light);
+        plugin.validate().unwrap();
+        for (layout, expected) in [
+            (SceneLayout::Portrait, 0xF5F7FA),
+            (SceneLayout::Landscape, 0xF0F4F8),
+            (SceneLayout::Square, 0xFFFFFF),
+        ] {
+            let scene = plugin.scene_with_theme(layout, &response, &settings, Theme::Light).unwrap();
+            assert_eq!(scene["background"], expected);
+        }
+        assert_eq!(plugin.scene(SceneLayout::Portrait, &response, &settings).unwrap()["background"], legacy_dark["background"]);
+        plugin.light_scenes.as_mut().unwrap().portrait.nodes[0]["color"] = json!(0x1_000000);
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn status_scene_follows_theme() {
+        let dark = status_scene("Plugin", "Loading");
+        let light = status_scene_with_theme("Plugin", "Loading", Theme::Light);
+        assert_ne!(dark["background"], light["background"]);
+        assert_ne!(dark["nodes"][0]["color"], light["nodes"][0]["color"]);
     }
 
     #[test]
