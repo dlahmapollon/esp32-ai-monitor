@@ -319,7 +319,7 @@ final class DisplayPlugins {
         }
         let title = record.info["viewLabel"] as? String ?? "Plugin"
         if record.error != nil { return Self.statusScene(title, text("unavailable"), theme: theme) }
-        if record.sceneTheme != theme { return Self.statusScene(title, text("loading"), theme: theme) }
+        // Bei einem Theme-Wechsel die vorhandene Szene bis zur neuen Antwort stehen lassen.
         guard let scene = record.scenes[layout], let fetched = record.fetchedAt else {
             return Self.statusScene(title, text("loading"), theme: theme)
         }

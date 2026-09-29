@@ -98,6 +98,7 @@ cargo run --quiet --manifest-path companion-windows/Cargo.toml \
   -p aimonitor-plugin-host -- render path/to/my-plugin.aimplugin - all path/to/response.json --theme=light
 ```
 
+The optional `--theme=dark|light` flag can appear before or after the positional arguments.
 `render` accepts a local JSON response fixture, so layout changes can be
 checked without calling the live API. Also test a live request by omitting the
 fixture path. Inspect the rendered nodes for all three layouts, then install
