@@ -216,6 +216,13 @@ export interface TimeZoneOption {
 }
 
 export const getConnection = () => invoke<ConnectionSnapshot>("get_connection");
+export interface WifiStatus { configured: boolean; connected: boolean; ssid: string; ip: string; rssi: number; timeSynced: boolean; error?: string }
+export interface WifiNetwork { ssid: string; rssi: number; secure: boolean }
+export interface WifiScan { networks: WifiNetwork[] }
+export const wifiStatus = () => invoke<WifiStatus>("wifi_command", { action: "status" });
+export const wifiScan = () => invoke<WifiScan>("wifi_command", { action: "scan" });
+export const wifiSet = (ssid: string, password: string) => invoke<WifiStatus>("wifi_command", { action: "set", ssid, password });
+export const wifiForget = () => invoke<WifiStatus>("wifi_command", { action: "forget" });
 export const listPorts = () => invoke<PortCandidate[]>("list_ports");
 export const setManualPort = (port: string | null) => invoke<void>("set_manual_port", { port });
 export const getDevices = () => invoke<DeviceProfile[]>("get_devices");
