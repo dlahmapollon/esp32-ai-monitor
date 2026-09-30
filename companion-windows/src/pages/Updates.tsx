@@ -2,16 +2,19 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   checkUpdates,
+  detectChip,
   flashFirmware,
   flashLocalFirmware,
   getUpdateStatus,
   installAppUpdate,
   onFirmwareDownload,
   onFlashProgress,
+  onPanelCorrection,
   onUpdateProgress,
   onUpdates,
   openReleasePage,
   type ConnectionSnapshot,
+  type DetectedChip,
   type DisplayVariant,
   type DownloadProgress,
   type FlashOutcome,
@@ -51,6 +54,22 @@ function percentOf(p: DownloadProgress | null): number | null {
   return Math.min(100, Math.round((p.received / p.total) * 100));
 }
 
+/// Gemeldetes Panel als CYD-Variante; `noreply`, S3 und Unbekanntes ergeben null.
+function cydPanel(panel: string | null | undefined): DisplayVariant | null {
+  return panel === "ili9341" || panel === "st7789" ? panel : null;
+}
+
+function variantKey(v: DisplayVariant): string {
+  return v === "ili9341" ? "flashdlg.variant.standard" : v === "st7789" ? "flashdlg.variant.alt" : "flashdlg.variant.s3";
+}
+
+/// Kurze Rückfrage statt Variantenwahl, wenn die Variante feststeht:
+/// vom Gerät gemeldet, per Chip eindeutig (S3) oder CYD mit Panel-Erkennung.
+interface Confirm {
+  variant: DisplayVariant;
+  kind: "reported" | "chip" | "cyd";
+}
+
 /// Verlaufsanzeige für Download und Flash (Balken aus der Übersicht).
 function Progress({ percent, indeterminate }: { percent: number | null; indeterminate?: boolean }) {
   return (
@@ -78,6 +97,11 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
   const [download, setDownload] = useState<DownloadProgress | null>(null);
   const [outcome, setOutcome] = useState<FlashOutcome | null>(null);
   const [flashError, setFlashError] = useState<{ summary: string; detail: string | null; message: string | null } | null>(null);
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [detectedChip, setDetectedChip] = useState<DetectedChip | null>(null);
+  /// Die App flasht von selbst nach, weil das Panel nicht zur Firmware passt.
+  const [correcting, setCorrecting] = useState<DisplayVariant | null>(null);
 
   // Status laden und alle Live-Events abonnieren.
   useEffect(() => {
@@ -87,6 +111,17 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
       unlisteners.push(await onUpdates((s) => setStatus(s)));
       unlisteners.push(await onFirmwareDownload((p) => setDownload(p)));
       unlisteners.push(await onUpdateProgress((p) => setInstallProgress(p)));
+      unlisteners.push(
+        await onPanelCorrection((v) => {
+          setCorrecting(v);
+          setConfirm(null);
+          setLocalPath(null);
+          setFlash(null);
+          setOutcome(null);
+          setFlashError(null);
+          setDialogOpen(true);
+        }),
+      );
       unlisteners.push(
         await onFlashProgress((p) => {
           setFlash(p);
@@ -139,7 +174,8 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
     }
   };
 
-  const runFlash = async (chosen: DisplayVariant) => {
+  const runFlash = async (chosen: DisplayVariant, autoPicked = false) => {
+    setConfirm(null);
     setVariant(chosen);
     setFlashing(true);
     setFlash({ phase: localPath ? "connecting" : "downloading", variant: chosen, percent: null, message: null, summary: null, detail: null });
@@ -149,7 +185,7 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
     try {
       setOutcome(localPath
         ? await flashLocalFirmware(chosen, localPath)
-        : await flashFirmware(chosen));
+        : await flashFirmware(chosen, autoPicked));
     } catch (e) {
       // Das Detail kam schon über das failed-Event; sonst den Text selbst zeigen.
       setFlashError((prev) => prev ?? { summary: String(e), detail: null, message: null });
@@ -158,12 +194,60 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
     }
   };
 
+  /// „Firmware flashen": Variante möglichst ohne Nachfrage bestimmen. Läuft
+  /// AI-Monitor-Firmware, gilt das ausgelesene Panel, sonst die gemeldete
+  /// Variante. Sonst den Chip auslesen: S3 eindeutig, ESP32 ist ein CYD.
+  const startFlash = async () => {
+    setLocalPath(null);
+    setDetectedChip(null);
+    setConfirm(null);
+    setCorrecting(null);
+    setFlash(null);
+    setOutcome(null);
+    setFlashError(null);
+    const releaseReady = !!port && !(connection?.paused ?? false) && filesComplete;
+    const reported = connection?.state === "connected"
+      ? cydPanel(connection.info?.panel) ?? connection.info?.display ?? fw?.deviceVariant ?? null
+      : null;
+    if (reported && releaseReady && (reported !== "st7701" || fw?.s3Available)) {
+      setVariant(reported);
+      setConfirm({ variant: reported, kind: "reported" });
+      setDialogOpen(true);
+      return;
+    }
+    let chip: DetectedChip | null = null;
+    if (port) {
+      setDetecting(true);
+      try {
+        chip = await detectChip();
+      } catch (e) {
+        console.error("detect_chip", e);
+      } finally {
+        setDetecting(false);
+      }
+    }
+    if (chip === "esp32s3" && fw?.s3Available && releaseReady) {
+      setVariant("st7701");
+      setConfirm({ variant: "st7701", kind: "chip" });
+    } else if (chip === "esp32" && fw?.panelDetection && releaseReady) {
+      setVariant("ili9341");
+      setConfirm({ variant: "ili9341", kind: "cyd" });
+    } else {
+      setDetectedChip(chip);
+      if (chip === "esp32s3") setVariant("st7701");
+      else if (chip === "esp32" && variant === "st7701") setVariant("ili9341");
+    }
+    setDialogOpen(true);
+  };
+
   const chooseLocalFirmware = async () => {
     setChooseError(null);
     try {
       const path = await open({ multiple: false, directory: false, filters: [{ name: "Firmware", extensions: ["bin"] }] });
       if (typeof path === "string") {
         setLocalPath(path);
+        setConfirm(null);
+        setDetectedChip(null);
         setDialogOpen(true);
       }
     } catch (e) {
@@ -172,8 +256,11 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
   };
 
   const closeDialog = () => {
-    if (flashing) return;
+    if (flashBusy) return;
     setDialogOpen(false);
+    setConfirm(null);
+    setDetectedChip(null);
+    setCorrecting(null);
     setLocalPath(null);
     setFlash(null);
     setOutcome(null);
@@ -200,7 +287,16 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
   const port = connection?.port ?? null;
   const releaseLoaded = !!fw?.latestTag;
   const filesComplete = releaseLoaded && (fw?.missingAssets.length ?? 0) === 0;
-  const ready = !!port && !flashing && !(connection?.paused ?? false) && (!!localPath || filesComplete);
+  // Ein Nachflashen läuft im Backend; `flashing` kennt nur eigene Aufrufe.
+  const correctionBusy = !!correcting && (!flash || (flash.phase !== "done" && flash.phase !== "failed"));
+  const flashBusy = flashing || correctionBusy;
+  const s3WithoutImage = detectedChip === "esp32s3" && !localPath && !fw?.s3Available;
+  const ready = !!port && !flashBusy && !(connection?.paused ?? false) && (!!localPath || filesComplete) && !s3WithoutImage;
+  // Firmware-Variante und ausgelesenes Panel passen nicht zusammen.
+  const panelVariant = connection?.state === "connected" ? cydPanel(connection.info?.panel) : null;
+  const runningVariant = connection?.info?.display ?? null;
+  const panelMismatch = !!panelVariant && !!runningVariant && runningVariant !== "st7701"
+    && panelVariant !== runningVariant && !flashBusy && !(connection?.paused ?? false);
   const deviceName = connection?.profile?.friendlyName ?? "ESP32";
   const shortPort = port ? port.replace(/^\/dev\//, "") : "";
 
@@ -318,24 +414,74 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
       ) : (
         <p className="muted">{status ? t("release.none.info") : t("upd.never")}</p>
       )}
+      {panelMismatch && !dialogOpen && (
+        <div className="notice-warn">
+          <strong>{t("panel.mismatch.title")}</strong>
+          <br />
+          {t("panel.mismatch.detail", { panel: t(variantKey(panelVariant!)), firmware: t(variantKey(runningVariant!)) })}
+          <div className="actions">
+            <button type="button" className="btn" onClick={() => { setDialogOpen(true); runFlash(panelVariant!); }} disabled={!port}>
+              {t("panel.mismatch.action")}
+            </button>
+          </div>
+        </div>
+      )}
       {!dialogOpen && (
         <div className="actions">
-          <button type="button" className="btn" onClick={() => setDialogOpen(true)} disabled={flashing} title={t("upd.flash.tooltip")}>
+          <button type="button" className="btn" onClick={startFlash} disabled={flashBusy || detecting} title={t("upd.flash.tooltip")}>
             {t("flash.action.short")}
           </button>
-          <button type="button" className="btn" onClick={chooseLocalFirmware} disabled={flashing}>
+          <button type="button" className="btn" onClick={chooseLocalFirmware} disabled={flashBusy || detecting}>
             {t("flash.local.choose")}
           </button>
         </div>
       )}
+      {detecting && <p className="muted">{t("flash.detecting")}</p>}
       {chooseError && <p className="notice-bad">{chooseError}</p>}
 
       {dialogOpen && (
         <div className="card" role="dialog" aria-label={t("flashdlg.title")}>
-          <h3>{t("flashdlg.title")}</h3>
+          <h3>{confirm && !flash ? t("flash.confirm.title", { version: fw?.latestVersion ?? "?" }) : t("flashdlg.title")}</h3>
+          {correcting && (
+            <p className="notice">
+              <strong>{t("panel.fix.running.title")}</strong>
+              <br />
+              {t("panel.fix.running.detail", { variant: t(variantKey(correcting)) })}
+            </p>
+          )}
           <p className="muted">{localPath ? `${localPath.split(/[\\/]/).pop()} · ${t("flash.local.format")}` : t("flashdlg.info", { port: shortPort || "—", version: fw?.latestVersion ?? fw?.deviceVersion ?? "?" })}</p>
 
-          {!flash && (
+          {!flash && confirm && (
+            <>
+              <p>
+                {confirm.kind === "cyd"
+                  ? t("flash.confirm.cyd")
+                  : t(confirm.kind === "chip" ? "flash.confirm.chip" : "flash.confirm.reported", { variant: t(variantKey(confirm.variant)) })}
+              </p>
+              <div className="actions">
+                <button type="button" className="btn" onClick={closeDialog}>
+                  {t("common.cancel")}
+                </button>
+                {confirm.variant !== "st7701" && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setDetectedChip(confirm.kind === "reported" ? null : "esp32");
+                      setConfirm(null);
+                    }}
+                  >
+                    {t("flash.confirm.other")}
+                  </button>
+                )}
+                <button type="button" className="btn btn-primary" onClick={() => runFlash(confirm.variant, confirm.kind === "cyd")} disabled={!ready}>
+                  {t("flash.confirm.start")}
+                </button>
+              </div>
+            </>
+          )}
+
+          {!flash && !confirm && (
             <>
               <h4>{t("flashdlg.preflight")}</h4>
               <ul className={ready ? "preflight" : "preflight preflight-warn"}>
@@ -356,16 +502,19 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
               <div className="radio-group" role="radiogroup" aria-label={t("flashdlg.variant")}>
                 {(["ili9341", "st7789", "st7701"] as DisplayVariant[]).map((v) => {
                   // Das S3-Image gibt es erst ab Firmware 2.19.0; eine lokale Datei geht immer.
-                  const unavailable = v === "st7701" && !localPath && !fw?.s3Available;
+                  const s3Missing = v === "st7701" && !localPath && !fw?.s3Available;
+                  // Der ausgelesene Chip schließt die Varianten des anderen Boards aus.
+                  const wrongChip = detectedChip === "esp32s3" ? v !== "st7701" : detectedChip === "esp32" ? v === "st7701" : false;
+                  const unavailable = s3Missing || wrongChip;
                   return (
                     <label key={v} className="radio-row">
                       <input type="radio" name="variant" value={v} checked={variant === v} disabled={unavailable} onChange={() => setVariant(v)} />
-                      <span>{t(v === "ili9341" ? "flashdlg.variant.standard" : v === "st7789" ? "flashdlg.variant.alt" : unavailable ? "flashdlg.variant.s3.missing" : "flashdlg.variant.s3")}</span>
+                      <span>{t(v === "st7701" && s3Missing ? "flashdlg.variant.s3.missing" : variantKey(v))}</span>
                     </label>
                   );
                 })}
               </div>
-              <p className="muted small">{t("flashdlg.variant.hint")}</p>
+              <p className="muted small">{t(detectedChip === "esp32" ? "flashdlg.variant.hint.cyd" : detectedChip === "esp32s3" ? "flashdlg.variant.hint.s3" : "flashdlg.variant.hint")}</p>
 
               <div className="actions">
                 <button type="button" className="btn" onClick={closeDialog}>
@@ -387,7 +536,7 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
           {flash && (
             <>
               <div className="progress-block">
-                <Progress percent={flashPercent} indeterminate={flashing && flashPercent === null} />
+                <Progress percent={flashPercent} indeterminate={flashBusy && flashPercent === null} />
                 <span className={flash.phase === "failed" ? "error-text error-text-plain mono" : "muted mono"}>{phaseText}</span>
               </div>
 
@@ -418,7 +567,7 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
                 </div>
               )}
 
-              {!flashing && (
+              {!flashBusy && (
                 <div className="actions">
                   {flashError && (
                     <>

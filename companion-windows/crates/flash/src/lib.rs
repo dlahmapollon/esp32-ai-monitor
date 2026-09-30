@@ -158,6 +158,44 @@ fn usb_info_for(port_name: &str) -> UsbPortInfo {
         })
 }
 
+/// Chip am Port auslesen und danach neu starten. Trennt das S3-Board von den
+/// CYDs; ILI9341 und ST7789 unterscheidet es nicht, beide CYDs tragen
+/// denselben ESP32. `Ok(None)` bei einem anderen Espressif-Chip. Der Port muss
+/// frei sein.
+pub fn detect_chip(port_name: &str) -> Result<Option<TargetChip>, FlashError> {
+    let serial = serialport::new(port_name, 115_200)
+        .flow_control(FlowControl::None)
+        .timeout(Duration::from_secs(3))
+        .open_native()
+        .map_err(|e| FlashError::Open(e.to_string()))?;
+
+    let connection = Connection::new(
+        serial,
+        usb_info_for(port_name),
+        ResetAfterOperation::HardReset,
+        ResetBeforeOperation::DefaultReset,
+        115_200,
+    );
+
+    // Ohne Stub und ohne Chip-Vorgabe: espflash liest nur die Kennung.
+    let mut flasher = Flasher::connect(connection, false, false, false, None, None)
+        .map_err(|e| FlashError::Connect(e.to_string()))?;
+    let chip = flasher.chip();
+    flasher
+        .connection()
+        .reset_after(false, chip)
+        .map_err(|e| FlashError::Connect(e.to_string()))?;
+    Ok(target_for(chip))
+}
+
+fn target_for(chip: Chip) -> Option<TargetChip> {
+    match chip {
+        Chip::Esp32 => Some(TargetChip::Esp32),
+        Chip::Esp32s3 => Some(TargetChip::Esp32S3),
+        _ => None,
+    }
+}
+
 /// Image ab Offset 0 schreiben, verifizieren, Hard-Reset. Der Port muss
 /// frei sein; der Aufrufer trennt vorher die normale Verbindung.
 pub fn flash_image(port_name: &str, image: &[u8], baud: u32, chip: TargetChip, on_event: &mut dyn FnMut(FlashEvent)) -> Result<(), FlashError> {
@@ -203,6 +241,13 @@ pub fn flash_image(port_name: &str, image: &[u8], baud: u32, chip: TargetChip, o
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_supported_chips_are_targets() {
+        assert_eq!(target_for(Chip::Esp32), Some(TargetChip::Esp32));
+        assert_eq!(target_for(Chip::Esp32s3), Some(TargetChip::Esp32S3));
+        assert_eq!(target_for(Chip::Esp32c3), None);
+    }
 
     #[test]
     fn percent_only_while_writing() {

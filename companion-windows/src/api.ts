@@ -151,6 +151,9 @@ export interface DeviceInfo {
   version: string;
   mac: string;
   display: DisplayVariant | null;
+  /** Aus dem Panel gelesener Controller (ab FW 2.23.0), z. B. "st7789" oder "noreply". */
+  panel: string | null;
+  panelId: string | null;
   orientation: Orientation | null;
   theme: "dark" | "light" | null;
   language: DisplayLanguage | null;
@@ -256,6 +259,9 @@ export interface FirmwareUpdate {
   latestVersion: string | null;
   deviceVersion: string | null;
   deviceVariant: DisplayVariant | null;
+  devicePanel: string | null;
+  /** Erkennt die Release-Firmware ihr Panel selbst? */
+  panelDetection: boolean;
   installedVersion: string | null;
   hasUpdate: boolean;
   missingAssets: string[];
@@ -323,7 +329,10 @@ export type InstallOutcome = "installerStarted" | "openedBrowser";
 export const checkUpdates = (force: boolean) => invoke<UpdateStatus>("check_updates", { force });
 export const getUpdateStatus = () => invoke<UpdateStatus>("get_update_status");
 export const downloadFirmware = (variant: DisplayVariant) => invoke<FirmwareFile>("download_firmware", { variant });
-export const flashFirmware = (variant: DisplayVariant) => invoke<FlashOutcome>("flash_firmware", { variant });
+export const flashFirmware = (variant: DisplayVariant, autoPicked = false) =>
+  invoke<FlashOutcome>("flash_firmware", { variant, autoPicked });
+export type DetectedChip = "esp32" | "esp32s3";
+export const detectChip = () => invoke<DetectedChip | null>("detect_chip");
 export const flashLocalFirmware = (variant: DisplayVariant, path: string) => invoke<FlashOutcome>("flash_local_firmware", { variant, path });
 export const installAppUpdate = () => invoke<InstallOutcome>("install_app_update");
 export const openReleasePage = () => invoke<void>("open_release_page");
@@ -333,6 +342,9 @@ export function onUpdates(handler: (status: UpdateStatus) => void): Promise<Unli
 }
 export function onFirmwareDownload(handler: (progress: DownloadProgress) => void): Promise<UnlistenFn> {
   return listen<DownloadProgress>("firmware-download", (event) => handler(event.payload));
+}
+export function onPanelCorrection(handler: (variant: DisplayVariant) => void): Promise<UnlistenFn> {
+  return listen<DisplayVariant>("panel-correction", (event) => handler(event.payload));
 }
 export function onFlashProgress(handler: (progress: FlashProgress) => void): Promise<UnlistenFn> {
   return listen<FlashProgress>("flash-progress", (event) => handler(event.payload));

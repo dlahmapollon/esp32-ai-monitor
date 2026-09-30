@@ -481,8 +481,20 @@ pub async fn download_firmware(
 pub async fn flash_firmware(
     app: AppHandle,
     variant: DisplayVariant,
+    auto_picked: Option<bool>,
 ) -> Result<FlashOutcome, String> {
-    tauri::async_runtime::spawn_blocking(move || flash::run(&app, variant))
+    // `autoPicked`: die App hat die Standard-Variante selbst gewählt, weil sie
+    // nur den Chip kannte. Nur diese Wahl darf sie auf Verdacht korrigieren.
+    let origin = if auto_picked.unwrap_or(false) { flash::FlashOrigin::AutoPicked } else { flash::FlashOrigin::User };
+    tauri::async_runtime::spawn_blocking(move || flash::run_origin(&app, variant, origin))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Chip am Port auslesen: `esp32`, `esp32s3` oder `null`.
+#[tauri::command]
+pub async fn detect_chip(app: AppHandle) -> Result<Option<&'static str>, String> {
+    tauri::async_runtime::spawn_blocking(move || flash::detect_chip(&app))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -494,7 +506,7 @@ pub async fn flash_local_firmware(
     path: String,
 ) -> Result<FlashOutcome, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        flash::run_with_image(&app, variant, Some(path.into()))
+        flash::run_with_image(&app, variant, Some(path.into()), flash::FlashOrigin::User)
     })
     .await
     .map_err(|e| e.to_string())?

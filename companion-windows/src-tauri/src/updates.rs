@@ -79,6 +79,11 @@ pub struct FirmwareUpdate {
     pub latest_version: Option<String>,
     pub device_version: Option<String>,
     pub device_variant: Option<DisplayVariant>,
+    /// Vom Gerät ausgelesener Display-Controller (`panel`, ab FW 2.23.0).
+    pub device_panel: Option<String>,
+    /// Erkennt die Firmware des aktuellen Release ihr Panel selbst? Dann
+    /// braucht der erste Flash auf einem CYD keine Variantenwahl.
+    pub panel_detection: bool,
     pub installed_version: Option<String>,
     pub has_update: bool,
     pub missing_assets: Vec<String>,
@@ -255,14 +260,15 @@ pub fn status(app: &AppHandle) -> UpdateStatus {
         let checking = *state.release_check.0.lock().unwrap();
         (s.update_channel, s.installed_firmware_version.clone(), checking)
     };
-    let (device_version, device_variant) = {
+    let (device_version, device_variant, device_panel) = {
         let conn = state.connection.lock().unwrap();
         let profile = conn.profile.as_ref();
         let version = profile.and_then(|p| p.firmware_version.clone());
         let variant = profile
             .and_then(|p| p.display_variant)
             .or_else(|| conn.info.as_ref().and_then(|i| i.display));
-        (version, variant)
+        let panel = conn.info.as_ref().and_then(|i| i.panel.clone());
+        (version, variant, panel)
     };
     let (checked_at, error, fw_release, app_release) = {
         let cache = state.releases.lock().unwrap();
@@ -297,6 +303,9 @@ pub fn status(app: &AppHandle) -> UpdateStatus {
         })
         .unwrap_or_default();
     let latest_version = fw_release.as_ref().map(|r| r.version());
+    let panel_detection = latest_version
+        .as_deref()
+        .is_some_and(|v| aimonitor_core::semver::at_least(v, aimonitor_core::protocol::PANEL_DETECTION_MIN_VERSION));
     let firmware = FirmwareUpdate {
         has_update: match (&latest_version, &device_version) {
             (Some(latest), Some(device)) => latest != device,
@@ -306,6 +315,8 @@ pub fn status(app: &AppHandle) -> UpdateStatus {
         latest_version,
         device_version,
         device_variant,
+        device_panel,
+        panel_detection,
         installed_version,
         missing_assets: fw_release
             .as_ref()

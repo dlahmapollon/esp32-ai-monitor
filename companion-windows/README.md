@@ -37,7 +37,7 @@ Umgebungsvariablen für die Entwicklung:
 | `AIMONITOR_OPEN_SETTINGS=1` | Öffnet das Einstellungsfenster sofort beim Start. |
 | `AIMONITOR_CODEXBAR_FIXTURE_DIR=<dir>` | Provider aus `<provider>.json` bedienen statt über das CLI (siehe Fixture-Modus). |
 | `AIMONITOR_OPEN_PAGE=<seite>` | Startseite des Fensters: `overview`, `connection`, `display`, `plugins`, `updates`, `diagnostics`. |
-| `AIMONITOR_DEV_ACTION=check\|download\|flash` | Führt beim Start einmal `check_updates`, `download_firmware` oder `flash_firmware` aus und schreibt das Ergebnis ins Log (`flash` wartet bis zu 60 s auf ein Gerät). Variante über `AIMONITOR_DEV_VARIANT=ili9341\|st7789`. |
+| `AIMONITOR_DEV_ACTION=check\|download\|flash\|detect` | Führt beim Start einmal `check_updates`, `download_firmware`, `flash_firmware` oder `detect_chip` aus und schreibt das Ergebnis ins Log (`flash` und `detect` warten bis zu 60 s auf ein Gerät). Variante über `AIMONITOR_DEV_VARIANT=ili9341\|st7789`; `AIMONITOR_DEV_AUTOPICKED=1` flasht wie die eigene Standard-Wahl der App (Test für das Nachflashen nach dem Panel-Abgleich). |
 
 Strg+C oder SIGTERM beenden die App wie „Beenden" im Tray: `standby` ans
 Gerät, Port schließen, dann Exit.
@@ -76,8 +76,9 @@ Commands fürs Frontend (`src-tauri/src/commands.rs`):
 | `send_diagnostic_frame` | Testframe, nach 20 s wieder der echte Snapshot |
 | `check_updates(force)` | Releases von GitHub laden (`force:false` nimmt den Cache); Ergebnis `UpdateStatus` |
 | `get_update_status` | `UpdateStatus` aus dem Cache ohne Netzzugriff |
+| `detect_chip()` | Chip am verbundenen Port auslesen (`esp32`, `esp32s3` oder `null`); pausiert den Serial-Service, das Board startet danach neu |
 | `download_firmware(variant)` | Firmware-Asset nach `app_data_dir()/firmware/` laden, Event `firmware-download` |
-| `flash_firmware(variant)` | Serial-Service anhalten, Image mit `aimonitor-flash` schreiben, fortsetzen; Event `flash-progress` |
+| `flash_firmware(variant, autoPicked?)` | Serial-Service anhalten, Image mit `aimonitor-flash` schreiben, fortsetzen; Event `flash-progress`. `autoPicked`: die App hat die Standard-Variante selbst gewählt; nur dann flasht sie bei `panel: "noreply"` ST7789 nach (Event `panel-correction`) |
 | `install_app_update` | `AIMonitor-Setup.exe` laden, SHA-256 prüfen, mit `/S /UPDATE /R` starten (Tauri-NSIS); sonst Browser. Event `update-progress` |
 | `open_release_page` | Release-Seite im Browser |
 

@@ -340,6 +340,8 @@ mod tests {
             version: version.into(),
             mac: mac.into(),
             display,
+            panel: None,
+            panel_id: None,
             orientation: None,
             theme: None,
             language: None,

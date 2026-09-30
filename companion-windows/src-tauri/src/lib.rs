@@ -19,7 +19,8 @@ use settings::Settings;
 use state::AppState;
 use tauri::Manager;
 
-/// Entwicklungsschalter AIMONITOR_DEV_ACTION (siehe README). `flash` wartet
+/// Entwicklungsschalter AIMONITOR_DEV_ACTION (siehe README). `detect` liest
+/// den Chip am verbundenen Port aus. `flash` wartet
 /// zuerst bis zu 60 s auf eine Verbindung; Variante über
 /// AIMONITOR_DEV_VARIANT (Default ili9341).
 fn dev_action(app: tauri::AppHandle, action: String) {
@@ -61,12 +62,31 @@ fn dev_action(app: tauri::AppHandle, action: String) {
                         }
                         std::thread::sleep(std::time::Duration::from_millis(500));
                     }
-                    match flash::run(&app, variant) {
+                    // AIMONITOR_DEV_AUTOPICKED=1 flasht wie die eigene Standard-Wahl der
+                    // App, um das Nachflashen nach dem Panel-Abgleich zu testen.
+                    let origin = if std::env::var("AIMONITOR_DEV_AUTOPICKED").is_ok_and(|v| v == "1") {
+                        flash::FlashOrigin::AutoPicked
+                    } else {
+                        flash::FlashOrigin::User
+                    };
+                    match flash::run_origin(&app, variant, origin) {
                         Ok(o) => println!(
                             "[dev] flash_firmware: {}",
                             serde_json::to_string_pretty(&o).unwrap_or_default()
                         ),
                         Err(e) => eprintln!("[dev] flash_firmware fehlgeschlagen: {e}"),
+                    }
+                }
+                "detect" => {
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+                    while std::time::Instant::now() < deadline
+                        && app.state::<AppState>().connection.lock().unwrap().port.is_none()
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                    match flash::detect_chip(&app) {
+                        Ok(chip) => println!("[dev] detect_chip: {}", chip.unwrap_or("unbekannt")),
+                        Err(e) => eprintln!("[dev] detect_chip fehlgeschlagen: {e}"),
                     }
                 }
                 other => eprintln!("[dev] Unbekannte AIMONITOR_DEV_ACTION: {other}"),
@@ -157,6 +177,7 @@ pub fn run() {
             commands::get_update_status,
             commands::download_firmware,
             commands::flash_firmware,
+            commands::detect_chip,
             commands::flash_local_firmware,
             commands::install_app_update,
             commands::open_release_page,

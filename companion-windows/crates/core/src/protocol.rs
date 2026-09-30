@@ -17,6 +17,12 @@ pub const MAX_FRAME_BYTES: usize = 4095;
 
 /// Firmware ab dieser Version versteht AIM1-Framing (Spec 3.3).
 pub const FRAMED_MIN_VERSION: &str = "2.12.3";
+/// Ab dieser Firmware liest das Gerät beim Start seinen Display-Controller
+/// aus und meldet ihn als `panel`.
+pub const PANEL_DETECTION_MIN_VERSION: &str = "2.23.0-beta.1";
+/// `panel`, wenn das Display keine Rückleitung hat und MISO offen hängt.
+/// So beim ST7789-CYD gemessen: ein Indiz für ST7789, kein Beweis.
+pub const PANEL_NO_REPLY: &str = "noreply";
 /// Firmware ab dieser Version bestätigt Datenframes mit `ack` (Spec 8.2).
 pub const ACK_MIN_VERSION: &str = "2.12.1";
 /// Firmware ab dieser Version akzeptiert `set_brightness` mit `persist:false`.
@@ -210,6 +216,13 @@ pub struct DeviceInfo {
     /// Kleingeschrieben; `legacy-device`, wenn das Gerät keine MAC meldet.
     pub mac: String,
     pub display: Option<DisplayVariant>,
+    /// Beim Start aus dem Panel gelesener Controller (ab FW 2.23.0), z. B.
+    /// `ili9341`, `st7789`, `ili9342` oder [`PANEL_NO_REPLY`]. Anders als
+    /// `display` beschreibt er die Hardware, nicht die geflashte Firmware.
+    /// `unknown` und leere Werte ergeben `None`.
+    pub panel: Option<String>,
+    /// Rohwerte der ID-Register, nur für die Diagnose.
+    pub panel_id: Option<String>,
     pub orientation: Option<Orientation>,
     pub theme: Option<Theme>,
     pub language: Option<Language>,
@@ -244,6 +257,16 @@ impl DeviceInfo {
                 .get("display")
                 .and_then(Value::as_str)
                 .and_then(DisplayVariant::parse),
+            panel: v
+                .get("panel")
+                .and_then(Value::as_str)
+                .map(|p| p.trim().to_ascii_lowercase())
+                .filter(|p| !p.is_empty() && p != "unknown"),
+            panel_id: v
+                .get("panelId")
+                .and_then(Value::as_str)
+                .map(|p| p.trim().to_string())
+                .filter(|p| !p.is_empty()),
             orientation: v
                 .get("orientation")
                 .and_then(Value::as_str)
@@ -275,6 +298,15 @@ impl DeviceInfo {
             uptime: v.get("uptime").and_then(Value::as_i64),
             heap: v.get("heap").and_then(Value::as_i64),
         })
+    }
+
+    /// Gemeldetes Panel als Firmware-Variante, nur wenn es eindeutig erkannt
+    /// ist und es dafür eine Variante gibt (ILI9341 oder ST7789).
+    pub fn detected_cyd_panel(&self) -> Option<DisplayVariant> {
+        self.panel
+            .as_deref()
+            .and_then(DisplayVariant::parse)
+            .filter(|v| !v.is_esp32s3())
     }
 
     /// AIM1, wenn `serialTransport` gleich `aim1` oder Version >= 2.12.3 (Spec 3.3).
@@ -577,6 +609,38 @@ mod tests {
         assert!(info.supports_ack());
         assert!(info.supports_brightness_preview());
         assert!(info.supports_notice());
+    }
+
+    #[test]
+    fn parses_panel_detection() {
+        let line = r#"{"type":"info","version":"2.23.0-beta.1","display":"ili9341","panel":"ST7789","panelId":"io12 04:858552"}"#;
+        let Some(DeviceMessage::Info(info)) = DeviceMessage::parse_line(line) else {
+            panic!()
+        };
+        assert_eq!(info.panel.as_deref(), Some("st7789"));
+        assert_eq!(info.panel_id.as_deref(), Some("io12 04:858552"));
+        assert_eq!(info.detected_cyd_panel(), Some(DisplayVariant::St7789));
+
+        let line = r#"{"type":"info","version":"2.23.0","display":"st7789","panel":"noreply"}"#;
+        let Some(DeviceMessage::Info(info)) = DeviceMessage::parse_line(line) else {
+            panic!()
+        };
+        assert_eq!(info.panel.as_deref(), Some(PANEL_NO_REPLY));
+        assert_eq!(info.detected_cyd_panel(), None);
+
+        // S3 meldet sein festes Panel; das ist keine CYD-Variante.
+        let line = r#"{"type":"info","version":"2.23.0","display":"st7701","panel":"st7701"}"#;
+        let Some(DeviceMessage::Info(info)) = DeviceMessage::parse_line(line) else {
+            panic!()
+        };
+        assert_eq!(info.detected_cyd_panel(), None);
+
+        let line = r#"{"type":"info","version":"2.23.0","panel":"unknown","panelId":""}"#;
+        let Some(DeviceMessage::Info(info)) = DeviceMessage::parse_line(line) else {
+            panic!()
+        };
+        assert_eq!(info.panel, None);
+        assert_eq!(info.panel_id, None);
     }
 
     #[test]

@@ -7,12 +7,14 @@
 //! Quelle werden nur kurz gehalten, nie über einen blockierenden seriellen
 //! Zugriff hinweg.
 
+use crate::flash;
 use crate::poll;
 use crate::registry;
 use crate::settings::{ViewContent, ViewMode};
 use crate::state::{current_snapshot, AppState};
 use crate::timezone;
 use crate::tray;
+use crate::updates;
 use aimonitor_core::envelope::{
     diagnostic_envelope, notice_envelope, usage_envelope, FrameContext,
 };
@@ -539,6 +541,7 @@ impl Service {
             "Profil {:?}: {} ({})",
             outcome, profile.friendly_name, profile.mac
         ));
+        let connected_info = info.clone();
         self.state = LinkState::Connected(info);
         self.profile = Some(profile.clone());
         self.unacked = 0;
@@ -552,6 +555,10 @@ impl Service {
             ));
         }
         self.publish();
+        // Neue Geräteversion: Update-Hinweis neu bewerten, sonst bliebe er
+        // nach einem Flash bis zur nächsten Release-Abfrage stehen.
+        updates::emit_status(&self.app);
+        flash::after_connect(&self.app, &connected_info);
 
         // Spec 6.1: vier set_*-Kommandos ohne Antwortauswertung, dann ein Frame.
         let theme = profile.theme.resolve(system_is_dark());

@@ -363,5 +363,19 @@
   "update.available.title": "App-Update verfügbar",
   "update.confirm.info": "Die App wird kurz neu gestartet.",
   "update.failed.title": "Update fehlgeschlagen",
-  "update.none.title": "Kein Update verfügbar"
+  "update.none.title": "Kein Update verfügbar",
+  "flash.confirm.title": "Firmware {version} flashen?",
+  "flash.confirm.reported": "Das Gerät meldet: {variant}. Die passende Firmware wird automatisch gewählt.",
+  "flash.confirm.chip": "Erkannt: {variant}. Für dieses Board gibt es genau eine Firmware.",
+  "flash.confirm.cyd": "Erkannt: ESP32 – eines der CYD-Boards. Welches Display verbaut ist, liest die Firmware nach dem Flash selbst aus. Passt es nicht zur Standard-Variante, spielt die App die richtige Firmware automatisch nach.",
+  "flash.confirm.other": "Andere Variante …",
+  "flash.confirm.start": "Flashen",
+  "flash.detecting": "Gerät wird erkannt …",
+  "flashdlg.variant.hint.cyd": "Erkannt: ESP32 – also eines der beiden CYD-Boards. Welches Display verbaut ist, verrät der Chip nicht. Im Zweifel zuerst Standard probieren; rauscht das Display danach oder ist gekippt, die Alternative wählen.",
+  "flashdlg.variant.hint.s3": "Erkannt: ESP32-S3 – das Guition-Board 4848S040.",
+  "panel.fix.running.title": "Passende Firmware wird aufgespielt",
+  "panel.fix.running.detail": "Erkannt: {variant}. Die App flasht die passende Variante nach.",
+  "panel.mismatch.title": "Firmware passt nicht zum Display",
+  "panel.mismatch.detail": "Verbaut ist {panel}, installiert ist die Firmware für {firmware}.",
+  "panel.mismatch.action": "Passende Firmware flashen"
 }

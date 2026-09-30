@@ -2,6 +2,7 @@
 //! den blockierenden CLI-Aufruf oder einen seriellen Zugriff hinweg (siehe
 //! `poll` und `serial_service`).
 
+use crate::flash::FlashRecord;
 use crate::plugins::PluginStore;
 use crate::serial_service::{ConnectionSnapshot, Job};
 use crate::settings::Settings;
@@ -36,6 +37,8 @@ pub struct AppState {
     pub release_check: (Mutex<bool>, Condvar),
     /// Ein Flash-Vorgang läuft; ein zweiter wird abgewiesen.
     pub flashing: AtomicBool,
+    /// Letzter Flash-Versuch, für den Panel-Abgleich nach dem Neustart.
+    pub last_flash: Mutex<Option<FlashRecord>>,
     /// Ein App-Update wird gerade geladen oder installiert.
     pub installing: AtomicBool,
 }
@@ -63,6 +66,7 @@ impl AppState {
             releases: Mutex::new(ReleaseCache::default()),
             release_check: (Mutex::new(false), Condvar::new()),
             flashing: AtomicBool::new(false),
+            last_flash: Mutex::new(None),
             installing: AtomicBool::new(false),
         }
     }
