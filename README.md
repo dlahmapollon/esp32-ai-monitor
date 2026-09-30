@@ -19,9 +19,11 @@ The Mac app can also flash firmware, check GitHub Releases for app and firmware 
 The Mac and Windows companions offer a third window mode, Intelligent. A
 provider window becomes eligible when usage rises by at least five percentage
 points, crosses 80/90/100%, or resets. Format version 2 display plugins may
-declare optional `attentionRules` for their own source data. The first
-successful sample establishes a baseline; repeated values do not trigger a
-switch. Windows stay visible for at least two minutes, each window has a
+declare optional `attentionRules` for their own source data. The built-in
+Claude Code window requests a switch when a session first needs
+permission or input, or completes and awaits the user. The first successful
+sample or waiting state establishes a baseline; repeated values do not trigger
+a switch. Windows stay visible for at least two minutes, each window has a
 ten-minute cooldown, and touch selection pauses automatic choices for ten
 minutes. The companion sends the existing manual `set_views` command, so no
 firmware change is needed.

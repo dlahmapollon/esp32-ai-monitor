@@ -1,6 +1,6 @@
 //! Host-side arbitration for the optional intelligent view mode.
-use aimonitor_core::{Entry, Provider};
-use std::collections::{BTreeMap, HashMap};
+use aimonitor_core::{claude_code::Waiting, Entry, Provider};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 
 const MIN_DWELL: Duration = Duration::from_secs(2 * 60);
@@ -42,12 +42,14 @@ struct Candidate {
     view: usize,
     priority: u8,
     at: Instant,
+    claude_wait: Option<(String, Waiting, i64)>,
 }
 
 #[derive(Default)]
 pub struct SmartSwitch {
     usage: HashMap<Provider, Vec<UsageSignal>>,
     plugins: HashMap<String, (BTreeMap<String, bool>, Instant)>,
+    claude_code_waiting: Option<BTreeSet<(String, Waiting, i64)>>,
     pending: Vec<Candidate>,
     shown_at: HashMap<usize, Instant>,
     last_change: Option<Instant>,
@@ -114,13 +116,31 @@ impl SmartSwitch {
         }
     }
 
+    pub fn observe_claude_code(&mut self, waiting: Vec<(String, Waiting, i64)>, views: &[Option<&str>], now: Instant) {
+        let current: BTreeSet<_> = waiting.into_iter().collect();
+        let previous = self.claude_code_waiting.replace(current.clone());
+        self.pending.retain(|candidate| candidate.claude_wait.as_ref()
+            .is_none_or(|key| current.contains(key)));
+        if let Some(previous) = previous {
+            for key in current.difference(&previous) {
+                for (index, assigned) in views.iter().enumerate() {
+                    if *assigned == Some(aimonitor_core::claude_code::VIEW_ID) {
+                        self.pending.push(Candidate {
+                            view: index, priority: 2, at: now, claude_wait: Some(key.clone()),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     pub fn reset_plugin(&mut self, id: &str, views: &[Option<&str>]) {
         self.plugins.remove(id);
         self.pending.retain(|candidate| views.get(candidate.view).copied().flatten() != Some(id));
     }
 
     fn enqueue(&mut self, view: usize, priority: u8, now: Instant) {
-        self.pending.push(Candidate { view, priority, at: now });
+        self.pending.push(Candidate { view, priority, at: now, claude_wait: None });
     }
 
     pub fn choose(&mut self, active: usize, now: Instant) -> Option<usize> {
@@ -175,6 +195,56 @@ mod tests {
         smart.observe_plugin("weather", state(false), &views, start + MIN_DWELL, Duration::from_secs(900));
         smart.observe_plugin("weather", state(true), &views, start + MIN_DWELL, Duration::from_secs(900));
         assert_eq!(smart.choose(0, start + MIN_DWELL), Some(1));
+    }
+
+    #[test]
+    fn claude_code_waiting_fires_for_each_session_and_cancels_resolved_wait() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.reset(start);
+        let views = [None, Some(aimonitor_core::claude_code::VIEW_ID)];
+        let wait = |id: &str, since| (id.to_owned(), Waiting::Permission, since);
+        smart.observe_claude_code(vec![], &views, start);
+        smart.observe_claude_code(vec![wait("a", 1)], &views, start + Duration::from_secs(1));
+        assert_eq!(smart.choose(0, start + Duration::from_secs(1)), None);
+        smart.observe_claude_code(vec![], &views, start + Duration::from_secs(2));
+        assert_eq!(smart.choose(0, start + MIN_DWELL), None);
+        smart.observe_claude_code(vec![wait("a", 3)], &views, start + MIN_DWELL);
+        assert_eq!(smart.choose(0, start + MIN_DWELL), Some(1));
+        smart.observe_claude_code(vec![wait("a", 3), wait("b", 4)], &views, start + MIN_DWELL);
+        assert_eq!(smart.pending.len(), 1);
+        smart.observe_claude_code(vec![wait("a", 3), wait("b", 4)], &views, start + MIN_DWELL);
+        assert_eq!(smart.pending.len(), 1);
+    }
+
+    #[test]
+    fn resolved_request_does_not_use_an_older_finished_session() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.reset(start);
+        let views = [None, Some(aimonitor_core::claude_code::VIEW_ID)];
+        let done = ("a".to_owned(), Waiting::Done, 1);
+        let permission = ("b".to_owned(), Waiting::Permission, 2);
+        smart.observe_claude_code(vec![done.clone()], &views, start);
+        smart.observe_claude_code(vec![done.clone(), permission], &views, start + Duration::from_secs(1));
+        smart.observe_claude_code(vec![done], &views, start + Duration::from_secs(2));
+        assert_eq!(smart.choose(0, start + MIN_DWELL), None);
+    }
+
+    #[test]
+    fn older_wait_cannot_borrow_newer_candidates_lifetime() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.reset(start);
+        let views = [None, Some(aimonitor_core::claude_code::VIEW_ID)];
+        let done = ("a".to_owned(), Waiting::Done, 1);
+        let permission = ("b".to_owned(), Waiting::Permission, 2);
+        smart.observe_claude_code(vec![], &views, start);
+        smart.observe_claude_code(vec![done.clone()], &views, start + Duration::from_secs(1));
+        smart.observe_claude_code(vec![done.clone(), permission], &views, start + Duration::from_secs(4 * 60));
+        smart.observe_claude_code(vec![done], &views, start + Duration::from_secs(4 * 60 + 30));
+        assert_eq!(smart.pending.len(), 1);
+        assert_eq!(smart.choose(0, start + Duration::from_secs(8 * 60)), None);
     }
 
     #[test]

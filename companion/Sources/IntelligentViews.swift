@@ -10,9 +10,16 @@ final class IntelligentViews {
         let view: Int
         let priority: Int
         let date: Date
+        let claudeWait: ClaudeWaitKey?
     }
     private var usage: [String: [String: UsageValue]] = [:]
     private var fetched: [String: Date] = [:]
+    private struct ClaudeWaitKey: Hashable {
+        let id: String
+        let state: Int
+        let since: Date
+    }
+    private var claudeCodeWaiting: Set<ClaudeWaitKey>?
     private var pending: [Candidate] = []
     private var shown: [Int: Date] = [:]
     private var lastChange = Date()
@@ -21,6 +28,7 @@ final class IntelligentViews {
     func reset() {
         usage.removeAll()
         fetched.removeAll()
+        claudeCodeWaiting = nil
         pending.removeAll()
         shown.removeAll()
         lastChange = Date()
@@ -81,7 +89,26 @@ final class IntelligentViews {
         usage[source.provider] = baseline
         if priority > 0 {
             for (index, view) in views.enumerated() where view == source.provider {
-                pending.append(Candidate(view: index, priority: priority, date: Date()))
+                pending.append(Candidate(view: index, priority: priority, date: Date(), claudeWait: nil))
+            }
+        }
+    }
+
+    func observeClaudeCode(waiting: [ClaudeCodeWindow.Session], views: [String]) {
+        let current = Set(waiting.compactMap { session -> ClaudeWaitKey? in
+            guard let state = session.waiting else { return nil }
+            return ClaudeWaitKey(id: session.id, state: state.rawValue, since: session.since)
+        })
+        let previous = claudeCodeWaiting
+        claudeCodeWaiting = current
+        pending.removeAll { candidate in
+            candidate.claudeWait.map { !current.contains($0) } ?? false
+        }
+        if let previous {
+            for key in current.subtracting(previous) {
+                for (index, view) in views.enumerated() where view == ClaudeCodeWindow.view {
+                    pending.append(Candidate(view: index, priority: 2, date: Date(), claudeWait: key))
+                }
             }
         }
     }
@@ -94,7 +121,7 @@ final class IntelligentViews {
 
     func pluginEvent(_ id: String, views: [String]) {
         for (index, view) in views.enumerated() where view == DisplayPlugins.prefix + id {
-            pending.append(Candidate(view: index, priority: 2, date: Date()))
+            pending.append(Candidate(view: index, priority: 2, date: Date(), claudeWait: nil))
         }
     }
 

@@ -2932,9 +2932,16 @@ class UsageMonitor {
             self.scheduleUsageSend()
         }
         ClaudeCodeWindow.shared.onChange = { [weak self] in
-            self?.onUpdate?()
+            guard let self = self else { return }
+            if Settings.shared.displayViewMode == "intelligent" {
+                self.intelligentViews.observeClaudeCode(
+                    waiting: ClaudeCodeWindow.shared.waiting(now: Date()),
+                    views: Settings.shared.displayViews)
+                self.applyIntelligentView()
+            }
+            self.onUpdate?()
             if Settings.shared.displayViews.contains(ClaudeCodeWindow.view) {
-                self?.scheduleUsageSend()
+                self.scheduleUsageSend()
             }
         }
         ClaudeCodeWindow.shared.start()
@@ -3402,6 +3409,8 @@ class UsageMonitor {
                 intelligentViews.observe(source, views: views)
             }
         }
+        intelligentViews.observeClaudeCode(
+            waiting: ClaudeCodeWindow.shared.waiting(now: Date()), views: views)
     }
 
     private func applyIntelligentView() {

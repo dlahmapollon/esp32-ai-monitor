@@ -69,6 +69,7 @@ pub enum Job {
     ResetSmartPlugin(String),
     SmartUsage(aimonitor_core::Provider, Vec<UsageSignal>),
     SmartPlugin(String, BTreeMap<String, bool>),
+    SmartClaudeCode(Vec<(String, aimonitor_core::claude_code::Waiting, i64)>),
     SendDiagnostic,
     Wifi { action: WifiAction, reply: Sender<Result<Value, String>> },
     /// Nur die geänderten Werte sind `Some`; das Profil selbst liegt in der Registry.
@@ -1172,10 +1173,18 @@ impl Service {
                     if plugin_views.contains(&Some(id.as_str())) && record.last_error.is_none() && fresh {
                         if let Some(data) = &record.data {
                             let max_age = Duration::from_secs(3 * record.manifest.source.interval_seconds as u64);
-                            self.smart.observe_plugin(id, record.manifest.attention_states(data), &plugin_views, now, max_age);
+                            let age = record.fetched_at.as_ref().and_then(|fetched| {
+                                Utc::now().signed_duration_since(fetched.to_owned()).to_std().ok()
+                            }).unwrap_or_default();
+                            let sampled_at = now.checked_sub(age).unwrap_or(now);
+                            self.smart.observe_plugin(id, record.manifest.attention_states(data), &plugin_views, sampled_at, max_age);
                         }
                     }
                 }
+                let waiting = state.claude_code.lock().unwrap().sessions
+                    .waiting(Utc::now().timestamp()).iter()
+                    .filter_map(|s| s.waiting.map(|kind| (s.id.clone(), kind, s.since))).collect();
+                self.smart.observe_claude_code(waiting, &plugin_views, now);
             },
             Job::ResetSmartPlugin(id) => {
                 let settings = self.app.state::<AppState>().settings.lock().unwrap().clone();
@@ -1218,6 +1227,15 @@ impl Service {
                         }).collect();
                         self.smart.observe_plugin(&id, states, &views, Instant::now(), max_age);
                     }
+                }
+            }
+            Job::SmartClaudeCode(waiting) => {
+                let settings = self.app.state::<AppState>().settings.lock().unwrap().clone();
+                if settings.view_mode == ViewMode::Intelligent {
+                    let views: Vec<_> = settings.views.iter().map(|view| match view {
+                        ViewContent::Plugin(id) => Some(id.as_str()), _ => None,
+                    }).collect();
+                    self.smart.observe_claude_code(waiting, &views, Instant::now());
                 }
             }
             Job::SendDiagnostic => self.send_diagnostic_frame(),

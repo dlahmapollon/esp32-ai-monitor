@@ -474,6 +474,17 @@ pub fn inspect(bytes: &[u8]) -> Result<PluginPreview, String> {
 }
 
 pub fn fetch(manifest: &Manifest, settings: &Map<String, Value>) -> Result<Value, String> {
+    // Development fixture: a file named <plugin-id>.json replaces the HTTPS
+    // response for that plugin only. It keeps hardware switching tests
+    // deterministic without changing the installed package or source URL.
+    if let Some(dir) = std::env::var_os("AIMONITOR_PLUGIN_FIXTURE_DIR") {
+        let fixture = Path::new(&dir).join(format!("{}.json", manifest.id));
+        if fixture.is_file() {
+            eprintln!("[plugins] Testdaten aus lokaler Fixture fuer {}", manifest.id);
+            let bytes = read_bounded(&fixture, MAX_SOURCE_BYTES)?;
+            return serde_json::from_slice(&bytes).map_err(|_| "invalid source JSON".into());
+        }
+    }
     let url = manifest.source_url(settings)?;
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(12)))
