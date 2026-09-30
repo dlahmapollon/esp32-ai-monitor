@@ -35,6 +35,9 @@ export default function ClaudeCodeCard({ t }: { t: Translate }) {
   };
 
   const hooks = status?.hooks ?? "missing";
+  // Ereignisse kommen an, obwohl die Hooks nicht in dieser Datei stehen
+  // (z. B. auf Projektebene): kein Grund zur Warnung.
+  const elsewhere = hooks === "missing" && status?.receiving === true;
   return (
     <div className="card">
       <h3>{t("cc.title")}</h3>
@@ -42,8 +45,8 @@ export default function ClaudeCodeCard({ t }: { t: Translate }) {
       {status && (status.listener === "failed"
         ? <p className="notice-bad" role="alert">{t("cc.listener.failed", { port: status.port, error: status.error ?? "" })}</p>
         : <p className="muted small">{t(status.listener === "running" ? "cc.listener.running" : "cc.listener.starting", { port: status.port })}</p>)}
-      <p className={hooks === "installed" ? "muted small" : "notice-warn"}>
-        {t(`cc.hooks.${hooks}`)}{status?.settingsPath ? ` · ${status.settingsPath}` : ""}
+      <p className={hooks === "installed" || elsewhere ? "muted small" : "notice-warn"}>
+        {t(elsewhere ? "cc.hooks.elsewhere" : `cc.hooks.${hooks}`)}{status?.settingsPath ? ` · ${status.settingsPath}` : ""}
       </p>
       <div className="field-row">
         {hooks !== "installed" && <button type="button" className="btn btn-primary" disabled={busy} onClick={() => setHooks(true)}>{t("cc.install")}</button>}

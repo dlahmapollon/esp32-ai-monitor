@@ -23,6 +23,7 @@
   "views.clock": "Uhr",
   "views.clock.active": "Das gewählte Fenster zeigt die Uhr.",
   "cc.hooks.installed": "Hooks eingerichtet",
+  "cc.hooks.elsewhere": "Ereignisse kommen an, die Hooks stehen aber nicht in dieser Datei (z. B. in einer Projekteinstellung)",
   "cc.hooks.missing": "Hooks noch nicht eingerichtet",
   "cc.hooks.outdated": "Hooks veraltet, bitte neu einrichten",
   "cc.install": "Hooks einrichten…",

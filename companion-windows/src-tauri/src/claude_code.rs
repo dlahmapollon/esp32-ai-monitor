@@ -6,7 +6,7 @@ use crate::serial_service::Job;
 use crate::settings::ViewContent;
 use crate::state::AppState;
 use aimonitor_core::claude_code::{
-    self as core, check_request, parse_request, response, HookStatus, Request, Sessions, Setup, Waiting,
+    self as core, check_request, parse_request, response, HookStatus, Request, Sessions, Waiting,
 };
 use aimonitor_core::plugin::SceneLayout;
 use aimonitor_core::protocol::{Language, Theme};
@@ -131,13 +131,8 @@ pub fn start(app: AppHandle) {
         .spawn(move || loop {
             std::thread::sleep(Duration::from_secs(60));
             refresh_hook_status(&app);
-            let waiting = {
-                let state = app.state::<AppState>();
-                let mut cc = state.claude_code.lock().unwrap();
-                cc.sessions.prune(now());
-                !cc.sessions.waiting(now()).is_empty()
-            };
-            if waiting {
+            let resend = app.state::<AppState>().claude_code.lock().unwrap().sessions.tick(now());
+            if resend {
                 resend_if_assigned(&app);
             }
         });
@@ -210,12 +205,12 @@ fn handle(app: &AppHandle, mut stream: TcpStream) {
 pub fn scene(app: &AppHandle, language: Language, theme: Theme, layout: SceneLayout) -> Value {
     let state = app.state::<AppState>();
     let cc = state.claude_code.lock().unwrap();
-    let setup = match (&cc.listener, cc.hooks) {
-        (Listener::Failed(_), _) => Setup::ListenerFailed,
-        (_, Some(HookStatus::Installed)) => Setup::Ready,
-        _ => Setup::HooksMissing,
-    };
     let now = now();
+    let setup = core::setup(
+        matches!(cc.listener, Listener::Failed(_)),
+        matches!(cc.hooks, Some(HookStatus::Installed)),
+        cc.sessions.receiving(now),
+    );
     core::scene(&cc.sessions.waiting(now), setup, now, language, theme, layout)
 }
 
@@ -235,6 +230,8 @@ pub struct ClaudeCodeStatus {
     port: u16,
     hooks: Option<&'static str>,
     settings_path: Option<String>,
+    /// Hook-Ereignisse kommen an, egal aus welcher Einstellungsdatei.
+    receiving: bool,
     waiting: Vec<WaitingSession>,
 }
 
@@ -266,6 +263,7 @@ fn status(app: &AppHandle) -> ClaudeCodeStatus {
         port: core::PORT,
         hooks: cc.hooks.map(HookStatus::wire),
         settings_path: settings_path(app).map(|p| p.display().to_string()),
+        receiving: cc.sessions.receiving(now()),
         waiting,
     }
 }

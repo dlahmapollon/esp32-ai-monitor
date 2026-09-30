@@ -52,6 +52,8 @@ final class ClaudeCodeWindow {
     private(set) var listenerState: ListenerState = .starting
     /// "missing" | "installed" | "outdated"; nil, solange unbekannt.
     private(set) var hookStatus: String?
+    /// Letztes gültiges Hook-Ereignis, egal aus welcher Einstellungsdatei.
+    private var lastEventAt: Date?
     var onChange: (() -> Void)?
 
     let token: String
@@ -87,9 +89,8 @@ final class ClaudeCodeWindow {
         // aufräumen, eine von Hand geänderte settings.json bemerken.
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.prune(now: Date())
             self.refreshHookStatus()
-            if !self.waiting(now: Date()).isEmpty { self.onChange?() }
+            if self.tick(now: Date()) { self.onChange?() }
         }
     }
 
@@ -220,10 +221,17 @@ final class ClaudeCodeWindow {
     /// Ein Hook-Ereignis übernehmen (Hauptthread).
     func apply(_ event: [String: Any], now: Date) {
         guard let id = event["session_id"] as? String, !id.isEmpty, id.utf8.count <= 128 else { return }
+        let receiving = receivingEvents(now: now)
+        lastEventAt = now
+        // Das erste Ereignis löst „Hooks fehlen“ ab, auch wenn es selbst nichts listet.
+        if update(id: id, event: event, now: now) || !receiving { onChange?() }
+    }
+
+    /// `true`, wenn sich die Anzeige ändern kann.
+    private func update(id: String, event: [String: Any], now: Date) -> Bool {
         let name = event["hook_event_name"] as? String ?? ""
         if name == "SessionEnd" {
-            if sessions.removeValue(forKey: id)?.waiting != nil { onChange?() }
-            return
+            return sessions.removeValue(forKey: id)?.waiting != nil
         }
         let current = sessions[id]?.waiting
         let next: Waiting?
@@ -240,10 +248,10 @@ final class ClaudeCodeWindow {
             case "idle_prompt", "agent_needs_input", "elicitation_dialog", "elicitation_url_dialog": next = .input
             case "agent_completed": next = .done
             case "elicitation_complete", "elicitation_response": next = nil
-            default: return
+            default: return false
             }
         default:
-            return
+            return false
         }
         var session = sessions[id] ?? Session(id: id, project: "", waiting: nil, since: now, lastEvent: now)
         if let cwd = event["cwd"] as? String {
@@ -256,7 +264,25 @@ final class ClaudeCodeWindow {
         session.lastEvent = now
         sessions[id] = session
         prune(now: now)
-        if changed { onChange?() }
+        return changed
+    }
+
+    /// Kommen Hook-Ereignisse an? Das beweist, dass Hooks wirken, auch wenn sie
+    /// nicht in `~/.claude/settings.json` stehen (z. B. auf Projektebene).
+    func receivingEvents(now: Date) -> Bool {
+        guard let last = lastEventAt else { return false }
+        return now.timeIntervalSince(last) < Self.sessionTTL
+    }
+
+    /// Minutentakt: aufräumen; `true`, wenn die Szene neu gesendet werden soll.
+    func tick(now: Date) -> Bool {
+        prune(now: now)
+        var expired = false
+        if let last = lastEventAt, now.timeIntervalSince(last) >= Self.sessionTTL {
+            lastEventAt = nil
+            expired = true
+        }
+        return expired || !waiting(now: now).isEmpty
     }
 
     private func prune(now: Date) {
@@ -306,7 +332,7 @@ final class ClaudeCodeWindow {
 
     var setup: Setup {
         if case .failed = listenerState { return .listenerFailed }
-        return hookStatus == "installed" ? .ready : .hooksMissing
+        return (hookStatus == "installed" || receivingEvents(now: Date())) ? .ready : .hooksMissing
     }
 
     static func text(_ key: String, _ language: String) -> String {

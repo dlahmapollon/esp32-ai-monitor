@@ -125,6 +125,7 @@ export interface ClaudeCodeStatus {
   port: number;
   hooks: "missing" | "installed" | "outdated" | null;
   settingsPath: string | null;
+  receiving: boolean;
   waiting: { project: string; state: "permission" | "input" | "done"; since: number }[];
 }
 export const claudeCodeStatus = () => invoke<ClaudeCodeStatus>("claude_code_status");

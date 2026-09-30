@@ -71,6 +71,9 @@ pub struct Session {
 #[derive(Debug, Default)]
 pub struct Sessions {
     sessions: HashMap<String, Session>,
+    /// Letztes gültiges Hook-Ereignis (Unix-Sekunden), egal aus welcher
+    /// Einstellungsdatei die Hooks stammen.
+    last_event: Option<i64>,
 }
 
 impl Sessions {
@@ -83,6 +86,13 @@ impl Sessions {
         else {
             return false;
         };
+        let receiving = self.receiving(now);
+        self.last_event = Some(now);
+        // Das erste Ereignis löst „Hooks fehlen“ ab, auch wenn es selbst nichts listet.
+        self.update(id, event, now) || !receiving
+    }
+
+    fn update(&mut self, id: &str, event: &Value, now: i64) -> bool {
         let name = event.get("hook_event_name").and_then(Value::as_str).unwrap_or("");
         if name == "SessionEnd" {
             return self.sessions.remove(id).is_some_and(|s| s.waiting.is_some());
@@ -158,6 +168,22 @@ impl Sessions {
         list.sort_by(|a, b| (a.waiting, a.since, &a.id).cmp(&(b.waiting, b.since, &b.id)));
         list
     }
+
+    /// Kommen Hook-Ereignisse an? Das beweist, dass Hooks wirken, auch wenn sie
+    /// nicht in `~/.claude/settings.json` stehen (z. B. auf Projektebene).
+    pub fn receiving(&self, now: i64) -> bool {
+        self.last_event.is_some_and(|t| now - t < SESSION_TTL_SECONDS)
+    }
+
+    /// Minutentakt: aufräumen; `true`, wenn die Szene neu gesendet werden soll.
+    pub fn tick(&mut self, now: i64) -> bool {
+        self.prune(now);
+        let expired = self.last_event.is_some_and(|t| now - t >= SESSION_TTL_SECONDS);
+        if expired {
+            self.last_event = None;
+        }
+        expired || !self.waiting(now).is_empty()
+    }
 }
 
 /// Letztes Pfadelement von `cwd` als druckbares ASCII.
@@ -206,6 +232,18 @@ pub enum Setup {
     Ready,
     HooksMissing,
     ListenerFailed,
+}
+
+/// Empfangsfehler zuerst; sonst genügen eingetragene Hooks oder eingehende
+/// Ereignisse für die Sessionliste.
+pub fn setup(listener_failed: bool, hooks_installed: bool, receiving: bool) -> Setup {
+    if listener_failed {
+        Setup::ListenerFailed
+    } else if hooks_installed || receiving {
+        Setup::Ready
+    } else {
+        Setup::HooksMissing
+    }
 }
 
 struct Palette {
@@ -694,6 +732,9 @@ mod tests {
     fn unknown_or_invalid_events_are_ignored() {
         let mut s = Sessions::default();
         assert!(!s.apply(&json!({"hook_event_name": "Stop"}), 1));
+        // Das erste gültige Ereignis ändert die Szene immer (siehe
+        // events_replace_missing_hooks_until_they_expire); danach nichts mehr.
+        assert!(s.apply(&event("SessionStart", "b", json!({})), 1));
         assert!(!s.apply(&event("PreCompact", "a", json!({})), 1));
         assert!(!s.apply(&event("Notification", "a", json!({"notification_type": "auth_success"})), 1));
         assert!(s.waiting(1).is_empty());
@@ -715,6 +756,37 @@ mod tests {
         assert_eq!(project_name("/Users/t/Projekte/Größe/"), "Groesse");
         assert_eq!(project_name("C:\\Users\\t\\café"), "caf?");
         assert_eq!(project_name(&format!("/x/{}", "a".repeat(40))).len(), MAX_PROJECT_CHARS);
+    }
+
+    #[test]
+    fn events_replace_missing_hooks_until_they_expire() {
+        let mut s = Sessions::default();
+        assert_eq!(setup(false, false, s.receiving(0)), Setup::HooksMissing);
+        // Das erste Ereignis ändert die Szene, obwohl die Session nur arbeitet.
+        assert!(s.apply(&event("SessionStart", "a", json!({})), 0));
+        assert_eq!(setup(false, false, s.receiving(0)), Setup::Ready);
+        assert!(!s.apply(&event("SessionStart", "b", json!({})), 5));
+        assert!(!s.tick(5 + SESSION_TTL_SECONDS - 1));
+        assert!(s.receiving(5 + SESSION_TTL_SECONDS - 1));
+        // Nach 12 Stunden ohne Ereignis fehlt der Beweis wieder, einmal neu senden.
+        assert!(s.tick(5 + SESSION_TTL_SECONDS));
+        assert!(!s.tick(5 + SESSION_TTL_SECONDS + 60));
+        assert_eq!(setup(false, false, s.receiving(5 + SESSION_TTL_SECONDS)), Setup::HooksMissing);
+    }
+
+    #[test]
+    fn setup_prefers_listener_errors_and_ignores_invalid_events() {
+        assert_eq!(setup(true, true, true), Setup::ListenerFailed);
+        assert_eq!(setup(false, true, false), Setup::Ready);
+        let mut s = Sessions::default();
+        assert!(!s.apply(&json!({"hook_event_name": "Stop"}), 0));
+        assert!(!s.receiving(0));
+        // Auch ein Sessionende oder ein unbekanntes Ereignis beweist wirkende Hooks.
+        assert!(s.apply(&event("SessionEnd", "a", json!({})), 0));
+        assert!(s.receiving(0));
+        let mut s = Sessions::default();
+        assert!(s.apply(&event("FutureHook", "a", json!({})), 0));
+        assert!(s.receiving(0));
     }
 
     #[test]
