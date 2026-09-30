@@ -5,6 +5,11 @@
 #   Mac App  -> companion/build.sh  (APP_VERSION=)
 #   Win App  -> companion-windows/src-tauri/tauri.conf.json ("version")
 #
+# Die Seite verlinkt nur Stable. Steht eine Quelle auf einer Vorabversion
+# (z. B. 2.23.0-beta.1), bleibt dieser Teil der Seite unveraendert — so kann
+# ein Windows-Stable-Release erscheinen, waehrend Firmware oder Mac-App gerade
+# eine Beta haben.
+#
 # Ohne Argument: patcht installer/index.html.
 # Mit --check:   patcht nichts, sondern meldet Abweichungen (Exit 1) — fuer CI.
 set -euo pipefail
@@ -26,18 +31,39 @@ WIN=$(python3 -c 'import json;print(json.load(open("companion-windows/src-tauri/
 CHECK=0
 [ "${1:-}" = "--check" ] && CHECK=1
 
+is_stable() { [[ "$1" != *-* ]]; }
+
+SED_ARGS=()
+if is_stable "$FW"; then
+  SED_ARGS+=(
+    -e "s|(data-v=\"fw\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${FW}|g"
+    -e "s|(data-v=\"fw-link\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${FW}|g"
+    -e "s|(releases/tag/)v[0-9]+\.[0-9]+\.[0-9]+|\1v${FW}|g"
+  )
+fi
+if is_stable "$APP"; then
+  SED_ARGS+=(
+    -e "s|(data-v=\"app\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${APP}|g"
+    -e "s|(releases/download/app-)v[0-9]+\.[0-9]+\.[0-9]+|\1v${APP}|g"
+    -e "s|(releases/tag/app-)v[0-9]+\.[0-9]+\.[0-9]+|\1v${APP}|g"
+  )
+fi
+if is_stable "$WIN"; then
+  SED_ARGS+=(
+    -e "s|(data-v=\"win\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${WIN}|g"
+    -e "s|(releases/download/win-(beta-)?v)[0-9]+\.[0-9]+\.[0-9]+|\1${WIN}|g"
+    -e "s|(releases/tag/win-(beta-)?v)[0-9]+\.[0-9]+\.[0-9]+|\1${WIN}|g"
+  )
+fi
+# Stand, den die Seite zeigen soll; Vorabversionen sind markiert.
+label() { is_stable "$1" && echo "v$1" || echo "v$1 (Vorabversion, Seite unverändert)"; }
+
 tmp=$(mktemp)
-sed -E \
-  -e "s|(data-v=\"fw\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${FW}|g" \
-  -e "s|(data-v=\"app\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${APP}|g" \
-  -e "s|(data-v=\"fw-link\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${FW}|g" \
-  -e "s|(releases/download/app-)v[0-9]+\.[0-9]+\.[0-9]+|\1v${APP}|g" \
-  -e "s|(releases/tag/app-)v[0-9]+\.[0-9]+\.[0-9]+|\1v${APP}|g" \
-  -e "s|(releases/tag/)v[0-9]+\.[0-9]+\.[0-9]+|\1v${FW}|g" \
-  -e "s|(data-v=\"win\">)v[0-9]+\.[0-9]+\.[0-9]+|\1v${WIN}|g" \
-  -e "s|(releases/download/win-(beta-)?v)[0-9]+\.[0-9]+\.[0-9]+|\1${WIN}|g" \
-  -e "s|(releases/tag/win-(beta-)?v)[0-9]+\.[0-9]+\.[0-9]+|\1${WIN}|g" \
-  "$PAGE" > "$tmp"
+if [ ${#SED_ARGS[@]} -gt 0 ]; then
+  sed -E "${SED_ARGS[@]}" "$PAGE" > "$tmp"
+else
+  cp "$PAGE" "$tmp"
+fi
 
 # Die Firmware-Version steckt auch im JS-Woerterbuch (help.a4 nutzt __FW__),
 # dort ist nichts zu ersetzen — der Platzhalter zieht sich den Wert aus dem DOM.
@@ -46,7 +72,7 @@ if [ "$CHECK" = "1" ]; then
   # Zeilenenden ignorieren: auf Windows-Runnern liegt die Seite mit CRLF vor,
   # die sed-Ausgabe hat LF; ohne Normalisierung meldet diff jede Zeile.
   if ! diff -q <(tr -d "\r" < "$PAGE") <(tr -d "\r" < "$tmp") >/dev/null; then
-    echo "Versionen auf der Seite weichen ab (erwartet: FW v${FW}, App v${APP}, Windows v${WIN}):"
+    echo "Versionen auf der Seite weichen ab (erwartet: FW $(label "$FW"), App $(label "$APP"), Windows $(label "$WIN")):"
     diff <(tr -d "\r" < "$PAGE") <(tr -d "\r" < "$tmp") | head -20 || true
     echo
     echo "Fix: scripts/sync_site_versions.sh"
@@ -54,15 +80,17 @@ if [ "$CHECK" = "1" ]; then
     exit 1
   fi
   rm -f "$tmp"
-  echo "Seite ist aktuell: FW v${FW}, App v${APP}, Windows v${WIN}"
+  echo "Seite ist aktuell: FW $(label "$FW"), App $(label "$APP"), Windows $(label "$WIN")"
   exit 0
 fi
 
 mv "$tmp" "$PAGE"
 
-for m in "$MANIFEST_ILI" "$MANIFEST_ST" "$MANIFEST_S3"; do
-  [ -f "$m" ] || continue
-  sed -i.bak -E "s|(\"version\": \")[0-9]+\.[0-9]+\.[0-9]+|\1${FW}|" "$m" && rm -f "$m.bak"
-done
+if is_stable "$FW"; then
+  for m in "$MANIFEST_ILI" "$MANIFEST_ST" "$MANIFEST_S3"; do
+    [ -f "$m" ] || continue
+    sed -i.bak -E "s|(\"version\": \")[0-9]+\.[0-9]+\.[0-9]+|\1${FW}|" "$m" && rm -f "$m.bak"
+  done
+fi
 
-echo "Seite und Manifeste aktualisiert: FW v${FW}, App v${APP}, Windows v${WIN}"
+echo "Seite und Manifeste aktualisiert: FW $(label "$FW"), App $(label "$APP"), Windows $(label "$WIN")"
