@@ -51,8 +51,9 @@ extension reject packages containing `localizations`.
 Release compatibility note: Unknown `{{...}}` placeholders now cause plugin
 installation or startup loading to fail for every package, including packages
 without `localizations`. Earlier companions accepted those packages; a node
-using the unknown placeholder failed to render when it was shown. Existing
-packages with such placeholders must be corrected and reinstalled before they
+using the unknown placeholder made the whole plugin view show a render error
+when that node was visible. Existing packages with such placeholders must be
+corrected and reinstalled before they
 load in this version.
 
 Firmware reports `sceneProtocol: 1` through `get_info`. Older firmware cannot

@@ -284,7 +284,12 @@ impl Manifest {
                 || binding
                     .map
                     .iter()
-                    .any(|(k, v)| !printable(k, 30) || !printable(v, 64))
+                    .any(|(k, v)| {
+                        !printable(k, 30)
+                            || !printable(v, 64)
+                            || (binding.format == BindingFormat::Map
+                                && v.len() + binding.suffix.len() > 64)
+                    })
             {
                 return Err("invalid binding".into());
             }
@@ -338,14 +343,17 @@ impl Manifest {
                 return Err("localized metadata too long".into());
             }
             for binding in &self.bindings {
-                for value in binding
-                    .map
-                    .values()
-                    .chain(std::iter::once(&binding.fallback))
-                {
-                    if !printable(self.localized(locale, value), 64) {
+                for value in binding.map.values() {
+                    let translated = self.localized(locale, value);
+                    if !printable(translated, 64)
+                        || (binding.format == BindingFormat::Map
+                            && translated.len() + binding.suffix.len() > 64)
+                    {
                         return Err("localized binding too long".into());
                     }
+                }
+                if !printable(self.localized(locale, &binding.fallback), 64) {
+                    return Err("localized binding too long".into());
                 }
             }
             for variants in std::iter::once(&self.scenes).chain(self.light_scenes.as_ref()) {
@@ -472,7 +480,7 @@ impl Manifest {
                     self.localized(locale, &binding.fallback).to_owned()
                 }
                 (None, BindingFormat::Integer | BindingFormat::Decimal1)
-                    if binding.fallback.parse::<f64>().is_err() =>
+                    if !binding.fallback.parse::<f64>().is_ok_and(f64::is_finite) =>
                 {
                     self.localized(locale, &binding.fallback).to_owned()
                 }
@@ -881,6 +889,33 @@ mod tests {
         let source_nodes = source_scene["nodes"].as_array().unwrap();
         assert!(source_nodes.iter().any(|node| node["text"] == "Clear"));
         assert!(!source_nodes.iter().any(|node| node["text"] == "Unbekannt"));
+
+        plugin.bindings.iter_mut().find(|binding| binding.name == "value").unwrap().fallback =
+            "NaN".into();
+        plugin.localizations.get_mut("de").unwrap().insert(
+            "NaN".into(), "Kein Wert".into(),
+        );
+        let nan_scene = plugin.scene_localized(
+            SceneLayout::Portrait, &response, &settings, "de",
+        ).unwrap();
+        assert!(nan_scene["nodes"].as_array().unwrap().iter().any(
+            |node| node["text"] == "Kein Wert"
+        ));
+    }
+
+    #[test]
+    fn translated_map_values_include_suffix_in_length_validation() {
+        let mut plugin = fixture();
+        plugin.bindings.iter_mut().find(|binding| binding.name == "state").unwrap().suffix =
+            " load".into();
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Active".into(), "X".repeat(60)),
+        ]));
+        assert_eq!(plugin.validate(), Err("localized binding too long".into()));
+        plugin.localizations.clear();
+        plugin.bindings.iter_mut().find(|binding| binding.name == "state").unwrap()
+            .map.insert("1".into(), "X".repeat(60));
+        assert_eq!(plugin.validate(), Err("invalid binding".into()));
     }
 
     #[test]
