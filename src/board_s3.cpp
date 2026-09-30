@@ -178,6 +178,17 @@ const char* board_display_id()
     return DISPLAY_ID;
 }
 
+// Das S3-Board gibt es nur mit ST7701S, da gibt es nichts zu erkennen.
+const char* board_panel_id()
+{
+    return DISPLAY_ID;
+}
+
+const char* board_panel_raw()
+{
+    return "";
+}
+
 // Das Panel sitzt ungedreht richtig herum, wenn USB rechts liegt
 // (Markierung oben links, im Hardware-Test geprueft). Die Apps beschreiben die
 // Ausrichtung ueber die Lage des USB-Anschlusses; daraus folgt die Drehung,

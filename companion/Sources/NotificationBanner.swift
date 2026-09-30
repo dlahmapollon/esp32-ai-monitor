@@ -25,6 +25,9 @@ final class NotificationBanner: NSView {
     private let closeButton = NSButton()
 
     private var action: (() -> Void)?
+    /// Wofuer das Banner gerade steht. Erlaubt es, einen Hinweis gezielt
+    /// wieder einzuklappen, wenn sich sein Anlass erledigt hat.
+    private(set) var noticeID: String?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -108,7 +111,9 @@ final class NotificationBanner: NSView {
               title: String,
               detail: String,
               actionTitle: String?,
-              action: (() -> Void)?) {
+              action: (() -> Void)?,
+              noticeID: String? = nil) {
+        self.noticeID = noticeID
         indicator.state = state
         titleLabel.stringValue = title
         detailLabel.stringValue = detail
@@ -135,5 +140,12 @@ final class NotificationBanner: NSView {
     @objc func dismiss() {
         isHidden = true
         action = nil
+        noticeID = nil
+    }
+
+    /// Schliesst das Banner nur, wenn es gerade diesen Hinweis zeigt.
+    func dismissNotice(_ noticeID: String) {
+        guard !isHidden, self.noticeID == noticeID else { return }
+        dismiss()
     }
 }

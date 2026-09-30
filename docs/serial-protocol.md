@@ -162,6 +162,8 @@ Antwort auf `get_info` `(serial_receiver.cpp:353-389)`.
 | `timeSynced` | Bool | NTP-Sync erfolgt | 378 |
 | `uptime` | Int | Sekunden seit Boot | 379 |
 | `heap` | Int | freier Heap in Bytes | 379 |
+| `panel` | String | Beim Start aus dem Panel gelesener Display-Controller: `"ili9341"`, `"st7789"`, `"ili9342"`, `"st7701"` (S3, fest), `"noreply"` (Panel ohne Rückleitung, MISO hängt offen, so beim ST7789-CYD) oder `"unknown"`. Beschreibt die Hardware, `display` dagegen die geflashte Firmware-Variante. Seit FW 2.23.0 | `board_cyd.cpp` |
+| `panelId` | String | Rohwerte der ID-Register für die Diagnose, z. B. `"io12 04:0000007fff d3:0093410000"`; leer auf dem S3. Seit FW 2.23.0 | `board_cyd.cpp` |
 | `frameGlitches` | Int | Bildaussetzer seit Boot (Bild dauert länger als das 1,5-Fache des Nennwerts); nur das S3-RGB-Panel misst, die CYDs melden 0. Seit FW 2.21.0 | 454 |
 
 Beispiel:
@@ -171,6 +173,8 @@ Beispiel:
 ```
 
 Der Host liest `version` (Pflicht), `serialTransport`, `maxFrameBytes`, `mac`, `display`, `brightness` `(main.swift:1841-1873)`. Die übrigen Felder werden vom Host nicht ausgewertet. `serialTransport` wird kleingeschrieben und getrimmt verglichen, `mac` und `display` ebenfalls kleingeschrieben `(main.swift:1846-1869)`. Fehlt `mac` oder ist es leer, verwendet der Host die Pseudo-MAC `legacy-device` `(main.swift:99)`, `(main.swift:1859-1861)`. `display` wird nur übernommen, wenn es `ili9341` oder `st7789` ist `(main.swift:1974-1977)`, `(main.swift:53-56)`.
+
+Ab App 1.32.0 liest der Host zusätzlich `panel`. Weicht ein erkannter Controller (`ili9341`, `st7789`) von `display` ab, flasht die App direkt nach einem eigenen Flash die passende Variante nach, sonst zeigt sie einen Hinweis. `noreply` gilt nur als Verdacht auf ST7789: Korrigiert wird dann ausschließlich die Standard-Variante, die die App beim ersten Flash selbst gewählt hat.
 
 ### 4.2 `ack`
 

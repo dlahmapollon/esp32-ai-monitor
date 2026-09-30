@@ -248,9 +248,16 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                     title: String,
                     detail: String,
                     actionTitle: String? = nil,
+                    noticeID: String? = nil,
                     action: (() -> Void)? = nil) {
         banner?.show(state: state, title: title, detail: detail,
-                     actionTitle: actionTitle, action: action)
+                     actionTitle: actionTitle, action: action,
+                     noticeID: noticeID)
+    }
+
+    /// Blendet einen bestimmten Hinweis aus, falls er gerade sichtbar ist.
+    func dismissBanner(_ noticeID: String) {
+        banner?.dismissNotice(noticeID)
     }
 
     // Von AppDelegate aufgerufen
@@ -740,6 +747,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             && !fw.isFlashing && !fw.isDownloading
 
         fwVariantLabel.stringValue = firmwareVariantText(profile?.displayVariant, state: sp.state)
+
+        // Der Update-Hinweis oben hat sich erledigt, sobald geflasht wird oder
+        // das Geraet nach dem Neustart die aktuelle Version meldet — egal, ob
+        // ueber das Banner oder den Updates-Tab geflasht wurde.
+        if fw.isFlashing
+            || (sp.state == .connected && Settings.shared.installedFirmwareVersion != nil && !fw.hasUpdate) {
+            banner?.dismissNotice(kFirmwareUpdateBannerID)
+        }
         if isForeign {
             fwVersionLabel.stringValue = L("fw.installed.unknown")
             if fw.isFlashing {
@@ -793,6 +808,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
                 fwFlashButton.isEnabled = (sp.state == .connected && fw.latestRelease != nil)
                 fwFlashButton.title = L("flash.other.variant")
             }
+        }
+
+        if fw.isDetectingChip {
+            fwUpdateLabel.stringValue = L("flash.detecting")
+            fwUpdateLabel.textColor = .secondaryLabelColor
+            fwFlashButton.isEnabled = false
+            fwLocalFlashButton.isEnabled = false
         }
 
         // Inline Flash-Progress — v1.12.0 mit mehrstufigem Phase-Label unter
@@ -959,6 +981,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             return "Variante: ILI9341 / R-Board"
         case kDisplayVariantST7789:
             return "Variante: ST7789 / Hybrid-Board"
+        case kDisplayVariantST7701:
+            return "Variante: ST7701 / Guition 4848S040"
         default:
             return "Variante: unbekannt"
         }
@@ -1066,13 +1090,15 @@ final class FlashDialogController: NSWindowController {
                              warning: String?,
                              canStart: Bool,
                              s3Available: Bool,
+                             detectedChip: FirmwareChip? = nil,
                              completion: @escaping (String?) -> Void) {
         let controller = FlashDialogController(info: info,
                                                defaultVariant: defaultVariant,
                                                preflightItems: preflightItems,
                                                warning: warning,
                                                canStart: canStart,
-                                               s3Available: s3Available)
+                                               s3Available: s3Available,
+                                               detectedChip: detectedChip)
         controller.completion = completion
         guard let window = controller.window else { completion(nil); return }
         // Modal gegenueber dem Settings-Fenster (falls offen), sonst
@@ -1095,14 +1121,18 @@ final class FlashDialogController: NSWindowController {
     private let canStart: Bool
     /// Liegt ein S3-Image vor (Release ab 2.19.0 oder lokale Datei)?
     private let s3Available: Bool
+    /// Per esptool ausgelesener Chip. Sperrt die Varianten, die nicht passen.
+    private let detectedChip: FirmwareChip?
 
     init(info: String,
          defaultVariant: String,
          preflightItems: [String],
          warning: String?,
          canStart: Bool,
-         s3Available: Bool) {
+         s3Available: Bool,
+         detectedChip: FirmwareChip? = nil) {
         self.infoText = info
+        self.detectedChip = detectedChip
         self.defaultVariant = defaultVariant
         self.preflightItems = preflightItems
         self.warning = warning
@@ -1170,6 +1200,12 @@ final class FlashDialogController: NSWindowController {
         radioS3 = NSButton(radioButtonWithTitle: L(s3Available ? "flashdlg.variant.s3" : "flashdlg.variant.s3.missing"),
                            target: self, action: #selector(variantChanged(_:)))
         radioS3.isEnabled = s3Available
+        if let chip = detectedChip {
+            let isS3 = chip.esptoolName == kFirmwareChipESP32S3.esptoolName
+            radioStandard.isEnabled = !isS3
+            radioAlternative.isEnabled = !isS3
+            radioS3.isEnabled = isS3 && s3Available
+        }
         radioS3.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(radioS3)
 
@@ -1182,7 +1218,13 @@ final class FlashDialogController: NSWindowController {
             radioStandard.state = .on
         }
 
-        let hint = NSTextField(wrappingLabelWithString: L("flashdlg.variant.hint"))
+        let hintKey: String
+        switch detectedChip?.esptoolName {
+        case kFirmwareChipESP32.esptoolName?: hintKey = "flashdlg.variant.hint.cyd"
+        case kFirmwareChipESP32S3.esptoolName?: hintKey = "flashdlg.variant.hint.s3"
+        default: hintKey = "flashdlg.variant.hint"
+        }
+        let hint = NSTextField(wrappingLabelWithString: L(hintKey))
         hint.font = NSFont.appFont(.subheadline)
         hint.textColor = .tertiaryLabelColor
         hint.translatesAutoresizingMaskIntoConstraints = false
@@ -1191,7 +1233,10 @@ final class FlashDialogController: NSWindowController {
         startBtn = NSButton(title: L("flashdlg.start"), target: self, action: #selector(onStart))
         startBtn.bezelStyle = .rounded
         startBtn.keyEquivalent = "\r"  // Enter
-        startBtn.isEnabled = canStart
+        // S3 erkannt, aber kein S3-Image im Release: jede andere Wahl liefe
+        // auf dem Chip nicht.
+        let s3WithoutImage = detectedChip?.esptoolName == kFirmwareChipESP32S3.esptoolName && !s3Available
+        startBtn.isEnabled = canStart && !s3WithoutImage
         startBtn.toolTip = canStart
             ? L("flashdlg.start.tooltip")
             : L("flashdlg.blocked")

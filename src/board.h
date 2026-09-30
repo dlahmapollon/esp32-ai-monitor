@@ -24,6 +24,15 @@ void board_display_init();
 // Kennung fuer das `display`-Feld in get_info ("ili9341", "st7789", "st7701").
 const char* board_display_id();
 
+// Tatsaechlich verbauter Display-Controller, beim Start aus dem Panel gelesen
+// ("ili9341", "st7789", "ili9342", "st7701" oder "unknown"). Weicht er von
+// board_display_id() ab, laeuft die falsche Firmware-Variante; die Mac-App
+// flasht dann die passende nach. Seit FW 2.23.0.
+const char* board_panel_id();
+
+// Rohwerte der ID-Register fuer die Diagnose (leer, wenn nicht gelesen).
+const char* board_panel_raw();
+
 // Drehung setzen; aktualisiert SCREEN_WIDTH und SCREEN_HEIGHT (config.h).
 void board_set_rotation(uint8_t orientation);
 

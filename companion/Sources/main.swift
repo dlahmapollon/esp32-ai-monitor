@@ -64,6 +64,16 @@ let kDisplayVariantST7789  = "st7789"
 /// Ab FW 2.19.0: Guition ESP32-S3-4848S040 (480x480, ST7701S).
 let kDisplayVariantST7701  = "st7701"
 let kDisplayVariantDefault = kDisplayVariantILI9341
+/// Ab dieser Firmware liest das Geraet beim Start seinen Display-Controller
+/// aus und meldet ihn in get_info als `panel`.
+let kFirmwarePanelDetectionMinVersion = "2.23.0-beta.1"
+/// Panels, fuer die es eine eigene Firmware-Variante gibt.
+let kFlashablePanels: Set<String> = [kDisplayVariantILI9341, kDisplayVariantST7789]
+/// `panel`, wenn das Display keine Rueckleitung hat und MISO offen haengt.
+/// So beim ST7789-CYD gemessen — ein Indiz, kein Beweis.
+let kPanelNoReply = "noreply"
+/// Kennung des Banners fuer eine unpassende Firmware-Variante.
+let kPanelMismatchBannerID = "panel-mismatch"
 /// Varianten, die jedes Firmware-Release mitbringt. Das S3-Image gibt es erst
 /// ab 2.19.0 — fehlt es, bleibt der Flash für die CYDs trotzdem möglich.
 let kRequiredFirmwareVariants = [kDisplayVariantILI9341, kDisplayVariantST7789]
@@ -83,6 +93,34 @@ let kFirmwareChipESP32S3 = FirmwareChip(esptoolName: "esp32s3", imageChipId: 9, 
 func firmwareChip(for variant: String) -> FirmwareChip {
     variant == kDisplayVariantST7701 ? kFirmwareChipESP32S3 : kFirmwareChipESP32
 }
+/// Anzeigename einer Display-Variante fuer Dialoge.
+func displayVariantName(_ variant: String) -> String {
+    switch variant {
+    case kDisplayVariantST7789: return L("flashdlg.variant.alt")
+    case kDisplayVariantST7701: return L("flashdlg.variant.s3")
+    default: return L("flashdlg.variant.standard")
+    }
+}
+
+/// Chip aus der Ausgabe von `esptool chip_id`. esptool 5 schreibt
+/// `Connected to ESP32-S3 on …` und `Chip type: ESP32-S3 (QFN56)`, esptool 4
+/// `Detecting chip type... ESP32-S3` und `Chip is ESP32-S3 (QFN56)`.
+func detectedFirmwareChip(fromEsptoolOutput output: String) -> FirmwareChip? {
+    let chipLines = output.components(separatedBy: .newlines).filter { line in
+        let lower = line.lowercased()
+        return lower.contains("chip type") || lower.contains("chip is")
+            || lower.contains("connected to") || lower.contains("detecting chip type")
+    }
+    guard let line = chipLines.first(where: { $0.range(of: "ESP32", options: .caseInsensitive) != nil }) else {
+        return nil
+    }
+    let upper = line.uppercased()
+    if upper.contains("ESP32-S3") { return kFirmwareChipESP32S3 }
+    // C3, S2, C6 usw. unterstuetzt die Firmware nicht.
+    if upper.range(of: #"ESP32-[A-Z]\d"#, options: .regularExpression) != nil
+        && upper.range(of: #"ESP32-D\d"#, options: .regularExpression) == nil { return nil }
+    return kFirmwareChipESP32
+}
 /// Schreibfortschritt aus einer esptool-Zeile. esptool 4 schreibt
 /// `Writing at 0x00010000... (12 %)`, esptool 5 ohne Terminal
 /// `Writing at 0x00010000 [===>   ]  12.3% 150.0kB/1.2MB [00:02]`.
@@ -94,6 +132,8 @@ func esptoolWritePercent(_ line: String) -> Int? {
 }
 
 let kFirmwareCheckInterval: TimeInterval = 6 * 3600
+/// Kennung des Firmware-Update-Banners im Einstellungsfenster.
+let kFirmwareUpdateBannerID = "firmware-update"
 let kFlashBaudRate = 460800
 let kAppAssetName = "AIMonitor.zip"
 let kAppUpdateCheckInterval: TimeInterval = 24 * 3600
@@ -1223,6 +1263,8 @@ class FirmwareManager {
     var isDownloading = false
     var isFlashing = false
     var flashingLocalImage = false
+    /// Laeuft gerade die Chip-Erkennung vor dem Flash-Dialog?
+    var isDetectingChip = false
     var downloadProgress: Double = 0
     var flashProgress: String = ""
     /// Aktuelle Phase — wird vom Settings-Fenster live gelesen.
@@ -1330,6 +1372,68 @@ class FirmwareManager {
             if checkProcess.terminationStatus == 0 { return (launchPath: python, mode: "module") }
         } catch {}
         return nil
+    }
+
+    /// Setzt Programm und Argumente fuer den jeweiligen esptool-Modus.
+    private func configure(_ process: Process,
+                           tool: (launchPath: String, mode: String),
+                           esptoolArgs: [String]) {
+        process.executableURL = URL(fileURLWithPath: tool.launchPath)
+        switch tool.mode {
+        case "binary":
+            // Eigenstaendiges esptool — kein Python, keine PYTHONPATH-Akrobatik.
+            process.arguments = esptoolArgs
+        case "module":
+            process.arguments = ["-m", "esptool"] + esptoolArgs
+        default:
+            if tool.mode.hasPrefix("platformio:") {
+                let scriptPath = String(tool.mode.dropFirst("platformio:".count))
+                process.arguments = [scriptPath] + esptoolArgs
+            }
+        }
+    }
+
+    /// Liest ueber esptool aus, welcher Chip am Port haengt, und startet ihn
+    /// danach neu. Das trennt das S3-Board von den CYDs. ILI9341 und ST7789
+    /// unterscheidet es nicht: beide CYDs tragen denselben ESP32.
+    /// `nil`, wenn kein Werkzeug da ist, das Board nicht antwortet oder ein
+    /// anderer Chip dranhaengt. Der Aufrufer muss den Port vorher freigeben.
+    func detectChip(port: String, completion: @escaping (FirmwareChip?) -> Void) {
+        guard let tool = resolveEsptool() else { completion(nil); return }
+        isDetectingChip = true
+        DispatchQueue.main.async { self.onUpdate?() }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let process = Process()
+            let pipe = Pipe()
+            // `chip_id` statt `chip-id`: esptool 5 nimmt beide Schreibweisen,
+            // das esptool.py aus PlatformIO (Version 4) nur diese.
+            self.configure(process, tool: tool,
+                           esptoolArgs: ["--port", port, "--baud", "115200", "chip_id"])
+            process.standardOutput = pipe
+            process.standardError = pipe
+            var output = ""
+            do {
+                try process.run()
+                // Haengt der Port, bricht der Timer esptool nach 20 s ab.
+                let timeout = DispatchWorkItem { if process.isRunning { process.terminate() } }
+                DispatchQueue.global().asyncAfter(deadline: .now() + 20, execute: timeout)
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+                timeout.cancel()
+                output = String(data: data, encoding: .utf8) ?? ""
+            } catch {
+                NSLog("[Firmware] Chip-Erkennung nicht gestartet: %@", error.localizedDescription)
+            }
+            let chip = process.terminationReason == .exit && process.terminationStatus == 0
+                ? detectedFirmwareChip(fromEsptoolOutput: output) : nil
+            NSLog("[Firmware] Chip-Erkennung auf %@: %@", port, chip?.esptoolName ?? "unbekannt")
+            DispatchQueue.main.async {
+                self.isDetectingChip = false
+                self.onUpdate?()
+                completion(chip)
+            }
+        }
     }
 
     private func findPython3() -> String? {
@@ -1546,19 +1650,7 @@ class FirmwareManager {
                 "--baud", "\(kFlashBaudRate)",
                 "write_flash", "0x0", binPath
             ]
-            process.executableURL = URL(fileURLWithPath: tool.launchPath)
-            switch tool.mode {
-            case "binary":
-                // Eigenstaendiges esptool — kein Python, keine PYTHONPATH-Akrobatik.
-                process.arguments = esptoolArgs
-            case "module":
-                process.arguments = ["-m", "esptool"] + esptoolArgs
-            default:
-                if tool.mode.hasPrefix("platformio:") {
-                    let scriptPath = String(tool.mode.dropFirst("platformio:".count))
-                    process.arguments = [scriptPath] + esptoolArgs
-                }
-            }
+            self.configure(process, tool: tool, esptoolArgs: esptoolArgs)
             process.standardOutput = outputPipe
             process.standardError = errorPipe
 
@@ -1663,6 +1755,12 @@ class FirmwareManager {
     var latestVersionDisplay: String {
         guard let release = latestRelease else { return "?" }
         return firmwareVersionTag(from: release.tag_name)
+    }
+
+    /// Erkennt die Firmware des aktuellen Release ihr Panel selbst?
+    var releaseDetectsPanel: Bool {
+        guard let latest = latestFirmwareVersionTag else { return false }
+        return SemVer.compare(latest, kFirmwarePanelDetectionMinVersion) != .orderedAscending
     }
 
     var latestFirmwareVersionTag: String? {
@@ -1814,6 +1912,9 @@ class SerialPortManager {
     var deviceSerialTransport: String?
     var deviceMaxFrameBytes: Int?
     var deviceSceneProtocol: Int?
+    /// Vom Geraet ausgelesener Display-Controller (`panel`, ab FW 2.23.0).
+    /// Anders als `display` beschreibt er die Hardware, nicht die Firmware.
+    var devicePanel: String?
     private(set) var lastFrameReceipt: SerialFrameReceipt?
     private(set) var lastConfirmedFrameReceipt: SerialFrameReceipt?
 
@@ -2035,6 +2136,7 @@ class SerialPortManager {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     self.deviceMaxFrameBytes = json["maxFrameBytes"] as? Int
                     self.deviceSceneProtocol = json["sceneProtocol"] as? Int
+                    self.devicePanel = Self.reportedPanel(in: json)
                     Settings.shared.installedFirmwareVersion = "v\(version)"
                     NSLog("[Serial] ESP32 firmware: v%@ (state=connected)", version)
 
@@ -2121,6 +2223,7 @@ class SerialPortManager {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 self.deviceMaxFrameBytes = json["maxFrameBytes"] as? Int
                 self.deviceSceneProtocol = json["sceneProtocol"] as? Int
+                self.devicePanel = Self.reportedPanel(in: json)
                 Settings.shared.installedFirmwareVersion = "v\(version)"
                 let reportedMAC = (json["mac"] as? String)?
                     .lowercased()
@@ -2141,6 +2244,18 @@ class SerialPortManager {
                 return
             }
         }
+    }
+
+    /// `panel` aus get_info; „unknown" und leere Werte zaehlen als nicht erkannt.
+    private static func reportedPanel(in json: [String: Any]) -> String? {
+        guard let panel = (json["panel"] as? String)?
+            .lowercased()
+            .trimmingCharacters(in: .whitespaces),
+              !panel.isEmpty, panel != "unknown" else { return nil }
+        if let raw = json["panelId"] as? String, !raw.isEmpty {
+            NSLog("[Serial] Panel %@ (%@)", panel, raw)
+        }
+        return panel
     }
 
     /// Abstand, in dem der Handshake `get_info` wiederholt, bis eine Antwort kommt.
@@ -2166,6 +2281,7 @@ class SerialPortManager {
         deviceSerialTransport = nil
         deviceMaxFrameBytes = nil
         deviceSceneProtocol = nil
+        devicePanel = nil
         lastDisconnectAt = Date()
         state = .disconnected
     }
@@ -2491,6 +2607,8 @@ class UsageMonitor {
     // SerialPortManager schuetzt zusaetzlich gegen Command-Sends vom Main-Thread.
     private let serialSendQueue = DispatchQueue(label: "de.aimonitor.serial-send")
     var onOutdatedFirmwareDetected: ((_ deviceName: String, _ installedVersion: String, _ latestVersion: String) -> Void)?
+    /// Nach jedem Connect: gemeldetes Panel und laufende Firmware-Variante.
+    var onPanelReported: ((_ panel: String?, _ firmwareVariant: String?) -> Void)?
     private var heartbeatTimer: Timer?
     /// Ausstehender, gebuendelter Usage-/Notice-Frame (siehe scheduleUsageSend).
     private var pendingUsageSend: DispatchWorkItem?
@@ -2793,6 +2911,11 @@ class UsageMonitor {
                 }
             }
             self.checkConnectedFirmwareVersionForUpdateNotice()
+            if self.serialPort.state == .connected {
+                let panel = self.serialPort.devicePanel
+                let variant = DeviceRegistry.shared.currentProfile()?.displayVariant
+                DispatchQueue.main.async { [weak self] in self?.onPanelReported?(panel, variant) }
+            }
         }
         serialPort.startScanning()
 
@@ -3619,6 +3742,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var menuBarQuickMenuObservation: NSObjectProtocol?
     private var updateChannelObservation: NSObjectProtocol?
     private var shownFirmwareUpdateNoticeKeys = Set<String>()
+    /// Flash, der schon automatisch korrigiert wurde. Liegt die Erkennung
+    /// daneben, flasht die App so nicht endlos hin und her.
+    private var panelCorrectionFlashAt: Date?
+    /// Flash, bei dem die App die CYD-Variante selbst gewaehlt hat (Standard,
+    /// weil nur der Chip bekannt war). Nur diese Wahl darf sie auf blossen
+    /// Verdacht („noreply") hin korrigieren.
+    private var autoPickedFlashAt: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Best-effort Aufraeumen der alten Keychain-Eintraege (Anthropic OAuth Cache).
@@ -3633,6 +3763,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.presentFirmwareUpdateNotice(deviceName: deviceName,
                                               installedVersion: installedVersion,
                                               latestVersion: latestVersion)
+        }
+        monitor.onPanelReported = { [weak self] panel, variant in
+            self?.handlePanelReport(panel: panel, firmwareVariant: variant)
         }
         monitor.start()
 
@@ -3915,14 +4048,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // ---- Actions, vom Settings-Fenster aufgerufen ----
 
-    /// Ab App v1.15.0: Flash-Dialog mit Board-Variant-Auswahl.
+    /// Flash mit automatischer Board-Erkennung.
     /// Ablauf:
     ///   1. Release muss bekannt sein → sonst Warn-Alert.
     ///   2. Port muss verbunden sein → sonst Warn-Alert.
-    ///   3. Default-Variante bestimmen: aus `DeviceProfile.displayVariant` des
-    ///      aktuell verbundenen Geraets (falls vorhanden), sonst Standard
-    ///      (ILI9341). Bei `.foreignFirmware` kein MAC → immer Standard.
-    ///   4. Dialog modal zeigen. User waehlt Variante → „Flashen starten".
+    ///   3. Laeuft schon AI-Monitor-Firmware, meldet sie ihre Display-Variante
+    ///      (get_info `display`). Dann nur noch bestaetigen, keine Auswahl.
+    ///   4. Sonst (fremde Firmware, Variante unbekannt) den Chip per esptool
+    ///      auslesen: ESP32-S3 → Guition-Board, fertig. ESP32 → einer der
+    ///      beiden CYDs; welches Panel verbaut ist, verraet der Chip nicht,
+    ///      deshalb bleibt dort die Auswahl ILI9341/ST7789.
     ///   5. Variantenspezifisches Asset herunterladen (falls nicht gecached),
     ///      Variant im Profil persistieren, flashen.
     func runFirmwareFlash() {
@@ -3934,18 +4069,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let port = monitor.serialPort.connectedPort else {
             alert(title: L("esp32.none.title"), info: L("esp32.none.info"), style: .warning); return
         }
+        guard !fw.isFlashing && !fw.isDownloading && !fw.isDetectingChip else { return }
 
-        // Default-Variante bestimmen — aus Profil (falls bekannt), sonst ILI9341.
-        let defaultVariant: String = DeviceRegistry.shared.currentProfile()?.displayVariant
-            ?? kDisplayVariantDefault
+        // Das ausgelesene Panel schlaegt die gemeldete Firmware-Variante: laeuft
+        // die falsche Variante, flasht das Update gleich die richtige.
+        let reportedVariant: String? = {
+            guard monitor.serialPort.state == .connected else { return nil }
+            if let panel = monitor.serialPort.devicePanel, kFlashablePanels.contains(panel) { return panel }
+            return DeviceRegistry.shared.currentProfile()?.displayVariant
+        }()
+        if let variant = reportedVariant, flashPreflight(port: port).canStart,
+           variant != kDisplayVariantST7701 || fw.releaseHasAsset(for: kDisplayVariantST7701) {
+            confirmFlash(port: port, variant: variant)
+            return
+        }
 
-        let version = fw.latestVersionDisplay != "?" ? fw.latestVersionDisplay : fw.installedVersionDisplay
+        // Ohne esptool gibt es nichts zu erkennen; der Dialog zeigt dann,
+        // was fehlt.
+        guard fw.resolveEsptool() != nil else {
+            presentFlashDialog(port: port, detectedChip: nil)
+            return
+        }
+        monitor.serialPort.stopScanning()
+        fw.detectChip(port: port) { [weak self] chip in
+            guard let self = self else { return }
+            self.monitor.serialPort.startScanning()
+            if chip?.esptoolName == kFirmwareChipESP32S3.esptoolName,
+               fw.releaseHasAsset(for: kDisplayVariantST7701),
+               self.flashPreflight(port: port).canStart {
+                // Fuer den S3 gibt es genau ein Image — nichts zu waehlen.
+                self.confirmFlash(port: port, variant: kDisplayVariantST7701, detectedByChip: true)
+            } else if chip?.esptoolName == kFirmwareChipESP32.esptoolName,
+                      fw.releaseDetectsPanel,
+                      self.flashPreflight(port: port).canStart {
+                // Einer der CYDs. Die Firmware liest ihr Panel nach dem Start
+                // selbst aus; passt es nicht, flasht handlePanelReport nach.
+                self.confirmFlash(port: port, variant: kDisplayVariantDefault, detectedCYD: true)
+            } else {
+                self.presentFlashDialog(port: port, detectedChip: chip)
+            }
+        }
+    }
+
+    private func flashPreflight(port: String) -> (items: [String], canStart: Bool) {
+        let fw = FirmwareManager.shared
         let shortPort = (port as NSString).lastPathComponent
-        let info = "ESP32 \(shortPort) — Firmware \(version)"
         let missingAssets = fw.missingExpectedAssetNames
         let esptoolReady = fw.resolveEsptool() != nil
         let canStart = fw.hasExpectedReleaseAssets && esptoolReady && !fw.isFlashing && !fw.isDownloading
-        let preflight = [
+        let items = [
             "USB: \(shortPort) erkannt",
             fw.hasExpectedReleaseAssets
                 ? L("flash.pre.files.ok")
@@ -3953,14 +4125,68 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             esptoolReady ? L("flash.pre.tool.ok") : L("flash.pre.tool.missing"),
             L("flash.hint.cable")
         ]
-        let warning = canStart ? nil : L("flash.hint.ready")
+        return (items, canStart)
+    }
+
+    /// Kurze Rueckfrage, wenn die Variante feststeht. „Andere Variante …"
+    /// fuehrt in den vollen Dialog — etwa wenn das Display nach einem Flash
+    /// mit der falschen Variante rauscht.
+    private func confirmFlash(port: String, variant: String,
+                              detectedByChip: Bool = false, detectedCYD: Bool = false) {
+        let fw = FirmwareManager.shared
+        let alert = NSAlert()
+        alert.messageText = L("flash.confirm.title", fw.latestVersionDisplay)
+        alert.informativeText = detectedCYD
+            ? L("flash.confirm.cyd")
+            : L(detectedByChip ? "flash.confirm.chip" : "flash.confirm.reported",
+                displayVariantName(variant))
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: L("flash.action.plain"))
+        alert.addButton(withTitle: L("common.cancel"))
+        // Das S3-Board hat genau ein Panel, dort gibt es nichts umzustellen.
+        if variant != kDisplayVariantST7701 {
+            alert.addButton(withTitle: L("flash.confirm.other"))
+        }
+        present(alert) { [weak self] response in
+            guard let self = self else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                // Bewusst der Port von vorhin: nach der Chip-Erkennung verbindet
+                // sich der Scanner gerade erst neu.
+                self.performFlash(port: port, variant: variant)
+                if detectedCYD { self.autoPickedFlashAt = fw.lastFlashAt }
+            case .alertThirdButtonReturn:
+                self.presentFlashDialog(port: port, detectedChip: firmwareChip(for: variant))
+            default:
+                break
+            }
+        }
+    }
+
+    /// Voller Dialog mit Variantenwahl. `detectedChip` sperrt die Optionen,
+    /// die zum ausgelesenen Chip nicht passen.
+    private func presentFlashDialog(port: String, detectedChip: FirmwareChip?) {
+        let fw = FirmwareManager.shared
+        let profileVariant = DeviceRegistry.shared.currentProfile()?.displayVariant
+        var defaultVariant = profileVariant ?? kDisplayVariantDefault
+        if let chip = detectedChip, firmwareChip(for: defaultVariant).esptoolName != chip.esptoolName {
+            defaultVariant = chip.esptoolName == kFirmwareChipESP32S3.esptoolName
+                ? kDisplayVariantST7701 : kDisplayVariantDefault
+        }
+
+        let version = fw.latestVersionDisplay != "?" ? fw.latestVersionDisplay : fw.installedVersionDisplay
+        let shortPort = (port as NSString).lastPathComponent
+        let info = "ESP32 \(shortPort) — Firmware \(version)"
+        let preflight = flashPreflight(port: port)
+        let warning = preflight.canStart ? nil : L("flash.hint.ready")
 
         FlashDialogController.presentModal(info: info,
                                            defaultVariant: defaultVariant,
-                                           preflightItems: preflight,
+                                           preflightItems: preflight.items,
                                            warning: warning,
-                                           canStart: canStart,
-                                           s3Available: fw.releaseHasAsset(for: kDisplayVariantST7701)) { [weak self] chosenVariant in
+                                           canStart: preflight.canStart,
+                                           s3Available: fw.releaseHasAsset(for: kDisplayVariantST7701),
+                                           detectedChip: detectedChip) { [weak self] chosenVariant in
             guard let self = self else { return }
             guard let variant = chosenVariant else { return }  // Abbrechen
             self.performFlash(port: port, variant: variant)
@@ -4069,6 +4295,77 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Vergleicht das ausgelesene Panel mit der laufenden Firmware-Variante.
+    /// Direkt nach einem Flash aus der App wird ohne Rueckfrage nachgeflasht —
+    /// das ist der Normalfall beim ersten Flash eines CYD, bei dem die App nur
+    /// den Chip kennt. Sonst gibt es einen Hinweis mit Flash-Knopf.
+    private func handlePanelReport(panel: String?, firmwareVariant: String?) {
+        guard let panel = panel, let variant = firmwareVariant, panel != variant else {
+            settingsController?.dismissBanner(kPanelMismatchBannerID)
+            return
+        }
+        let fw = FirmwareManager.shared
+        guard let port = monitor.serialPort.connectedPort,
+              !fw.isFlashing, !fw.isDownloading, fw.latestRelease != nil else { return }
+
+        // Ohne Rueckleitung gibt es keine ID, nur den Verdacht auf ST7789.
+        // Korrigiert wird dann nur die Standard-Wahl der App selbst, nie eine
+        // bewusste Wahl des Nutzers — und es gibt keinen Hinweis.
+        if panel == kPanelNoReply {
+            settingsController?.dismissBanner(kPanelMismatchBannerID)
+            if variant == kDisplayVariantILI9341,
+               let pickedAt = autoPickedFlashAt, fw.lastFlashAt == pickedAt,
+               isRecentUncorrectedFlash(variant: variant) {
+                NSLog("[Firmware] Panel ohne Rueckleitung nach Standard-Flash — flashe ST7789")
+                flashMatchingPanel(port: port, panel: kDisplayVariantST7789)
+            }
+            return
+        }
+
+        guard kFlashablePanels.contains(panel), kFlashablePanels.contains(variant) else {
+            NSLog("[Firmware] Panel %@ ohne passende Firmware-Variante (laeuft: %@)", panel, variant)
+            return
+        }
+        NSLog("[Firmware] Panel %@, Firmware-Variante %@ — passt nicht", panel, variant)
+
+        if isRecentUncorrectedFlash(variant: variant) {
+            flashMatchingPanel(port: port, panel: panel)
+            return
+        }
+
+        settingsController?.showBanner(
+            state: .attention,
+            title: L("panel.mismatch.title"),
+            detail: L("panel.mismatch.detail", displayVariantName(panel), displayVariantName(variant)),
+            actionTitle: L("panel.mismatch.action"),
+            noticeID: kPanelMismatchBannerID
+        ) { [weak self] in
+            guard let self = self, let current = self.monitor.serialPort.connectedPort else { return }
+            self.performFlash(port: current, variant: panel)
+        }
+    }
+
+    /// Kam die laufende Variante eben erst aus einem Release-Flash der App,
+    /// der noch nicht nachkorrigiert wurde?
+    private func isRecentUncorrectedFlash(variant: String) -> Bool {
+        let fw = FirmwareManager.shared
+        guard let flashedAt = fw.lastFlashAt else { return false }
+        return Date().timeIntervalSince(flashedAt) < 300
+            && fw.lastFlashVariant == variant
+            && !fw.flashingLocalImage
+            && panelCorrectionFlashAt != flashedAt
+    }
+
+    private func flashMatchingPanel(port: String, panel: String) {
+        settingsController?.showBanner(
+            state: .info,
+            title: L("panel.fix.running.title"),
+            detail: L("panel.fix.running.detail", displayVariantName(panel)),
+            noticeID: kPanelMismatchBannerID)
+        performFlash(port: port, variant: panel)
+        panelCorrectionFlashAt = FirmwareManager.shared.lastFlashAt
+    }
+
     private func presentFlashRecovery(message: String, port: String, variant: String) {
         let alert = NSAlert()
         alert.messageText = L("flash.failed.title")
@@ -4127,7 +4424,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             state: .info,
             title: L("fw.update.available"),
             detail: L("fw.update.device", deviceName, installedVersion, latestVersion),
-            actionTitle: L("flash.action.plain")
+            actionTitle: L("flash.action.plain"),
+            noticeID: kFirmwareUpdateBannerID
         ) { [weak self] in
             self?.runFirmwareFlash()
         }

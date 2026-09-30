@@ -435,14 +435,17 @@ static void handle_get_info() {
     // `display` kommt aus DISPLAY_ID (config.h), Compile-Zeit-Ableitung
     // aus ILI9341_DRIVER / ST7789_DRIVER. Info-Only, keine FW-Logik.
     // Seit v2.10.1.
+    // `panel` ist der beim Start aus dem Panel gelesene Controller, `panelId`
+    // die Rohwerte dazu. Seit v2.23.0.
     Serial.printf("{\"type\":\"info\",\"version\":\"%s\",\"mac\":\"%s\","
-                  "\"display\":\"%s\","
+                  "\"display\":\"%s\",\"panel\":\"%s\",\"panelId\":\"%s\","
                   "\"orientation\":\"%s\","
                   "\"theme\":\"%s\",\"language\":\"%s\",\"brightness\":%u,"
                   "\"serialTransport\":\"%s\",\"maxFrameBytes\":%u,\"sceneProtocol\":1,"
                   "\"wifiConfigured\":%s,\"wifiConnected\":%s,\"timeSynced\":%s,"
                   "\"uptime\":%lu,\"heap\":%u,\"frameGlitches\":%lu}\n",
-                  APP_VERSION, mac_str, DISPLAY_ID, orient, theme, lang,
+                  APP_VERSION, mac_str, DISPLAY_ID, board_panel_id(), board_panel_raw(),
+                  orient, theme, lang,
                   (unsigned)g_config.brightness_pct,
                   SERIAL_FRAME_MAGIC,
                   (unsigned)SERIAL_FRAME_MAX_SIZE,
