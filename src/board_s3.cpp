@@ -311,9 +311,9 @@ void board_backlight_set_percent(uint8_t pct)
 
 bool board_persists_config()
 {
-    // Nein: siehe board.h. Schreibzugriffe ins Flash verschieben das Bild
-    // dauerhaft, die Einstellungen kommen vom Host.
-    return false;
+    // Seit FW 2.21.0 ja: Mit der Framework-Konfiguration aus platformio.ini
+    // bleibt das Bild auch bei Schreibzugriffen ins Flash ruhig.
+    return true;
 }
 
 uint32_t board_frame_glitches()

@@ -50,11 +50,11 @@ void board_backlight_set_percent(uint8_t pct);
 
 // Speichert dieses Board Einstellungen dauerhaft?
 //
-// Auf dem S3-Board nicht: Waehrend ins Flash geschrieben wird, ist der Cache
-// abgeschaltet und der RGB-Treiber kommt nicht an den Framebuffer im PSRAM.
-// Das Bild verrutscht dann dauerhaft und laesst sich nur durch einen Neustart
-// geraderuecken (Messung: hardware-test/esp32s3-4848s040/README.md). Die
-// Einstellungen kommen dort bei jedem Verbinden vom Host.
+// Bis FW 2.20.x nicht auf dem S3-Board: Beim Schreiben ins Flash war der Cache
+// abgeschaltet, der RGB-Treiber kam nicht an den Framebuffer im PSRAM, und das
+// Bild verrutschte dauerhaft. Seit 2.21.0 laeuft der Code dort aus dem PSRAM
+// (custom_sdkconfig in platformio.ini, Messung in
+// hardware-test/esp32s3-4848s040/README.md); alle Boards speichern wieder.
 bool board_persists_config();
 
 // Diagnose: Bildaussetzer seit dem Start. Nur das RGB-Panel kann das messen,
