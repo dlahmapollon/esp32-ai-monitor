@@ -278,6 +278,7 @@
 "cc.listener.starting" = "Starting listener on 127.0.0.1:%d …";
 "cc.listener.failed" = "Cannot listen on port %d: %@";
 "cc.hooks.installed" = "Hooks set up";
+"cc.hooks.elsewhere" = "Events are arriving, but the hooks are not in this file (e.g. in a project setting)";
 "cc.hooks.missing" = "Hooks not set up yet";
 "cc.hooks.outdated" = "Hooks outdated, please set them up again";
 "cc.install" = "Set up hooks …";

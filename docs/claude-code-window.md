@@ -11,8 +11,9 @@ firmware with `sceneProtocol: 1` works without an update.
 Claude Code sends [HTTP hooks](https://code.claude.com/docs/en/hooks) to the
 companion. The companion listens on `127.0.0.1:47651` only and accepts
 `POST /claude-code` with the header `X-AIMonitor-Token`. The token is generated
-per installation. Every request gets an empty `200` response, so the hooks
-never approve, block, or change anything in Claude Code.
+per installation. Every accepted request gets an empty `200` response, so the
+hooks never approve, block, or change anything in Claude Code. Requests without
+the right token get `401`.
 
 | Hook | Display state |
 |---|---|
@@ -27,6 +28,12 @@ events for 12 hours is dropped. The window lists up to four sessions, approval
 first, then input, then done, oldest first within each group, with the project
 folder name and how long it has been waiting. Folder names are shown as
 printable ASCII (`Größe` becomes `Groesse`).
+
+The window lists sessions when the hooks are in `~/.claude/settings.json` or
+when an event with the right token arrived within the last 12 hours. Hooks in
+a project's settings therefore work too. Otherwise the window asks you to set
+up the hooks. If events arrive although `~/.claude/settings.json` has no hooks,
+the Plugins page says so instead of showing a warning.
 
 ## Setup
 

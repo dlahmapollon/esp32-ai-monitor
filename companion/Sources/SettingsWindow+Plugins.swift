@@ -265,8 +265,12 @@ extension SettingsWindowController {
             claudeCodeListenerLabel.textColor = .systemRed
         }
         let hooks = cc.hookStatus ?? "missing"
-        claudeCodeHooksLabel.stringValue = L("cc.hooks.\(hooks)") + " · " + ClaudeCodeWindow.settingsURL.path
-        claudeCodeHooksLabel.textColor = hooks == "installed" ? .secondaryLabelColor : .systemOrange
+        // Ereignisse kommen an, obwohl die Hooks nicht in dieser Datei stehen
+        // (z. B. auf Projektebene): kein Grund zur Warnung.
+        let elsewhere = hooks == "missing" && cc.receivingEvents(now: Date())
+        claudeCodeHooksLabel.stringValue = L(elsewhere ? "cc.hooks.elsewhere" : "cc.hooks.\(hooks)")
+            + " · " + ClaudeCodeWindow.settingsURL.path
+        claudeCodeHooksLabel.textColor = hooks == "installed" || elsewhere ? .secondaryLabelColor : .systemOrange
         claudeCodeInstallButton.isHidden = hooks == "installed"
         claudeCodeRemoveButton.isHidden = hooks == "missing"
 
