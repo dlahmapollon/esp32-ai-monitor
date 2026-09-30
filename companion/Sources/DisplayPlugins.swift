@@ -16,6 +16,7 @@ struct DisplayPluginRecord {
     var fetchedAt: Date?
     var lastAttempt: Date?
     var error: String?
+    var sceneLocale: String?
     var sceneTheme: String?
 }
 
@@ -27,6 +28,12 @@ final class DisplayPlugins {
     private var fetching = Set<String>()
 
     private let root: URL
+
+    static func localized(_ source: String, info: [String: Any], locale: String? = nil) -> String {
+        let locale = locale ?? (Bundle.main.preferredLocalizations.first?.hasPrefix("de") == true ? "de" : "en")
+        let dictionaries = info["localizations"] as? [String: [String: String]]
+        return dictionaries?[locale]?[source] ?? source
+    }
 
     static func resolvedTheme() -> String {
         switch Settings.shared.themeMode {
@@ -57,7 +64,8 @@ final class DisplayPlugins {
 
     func label(for view: String) -> String {
         guard let id = Self.id(from: view) else { return view }
-        return records[id]?.info["viewLabel"] as? String ?? id
+        guard let info = records[id]?.info else { return id }
+        return Self.localized(info["viewLabel"] as? String ?? id, info: info)
     }
 
     private func packagePath(_ id: String) -> URL {
@@ -262,6 +270,7 @@ final class DisplayPlugins {
     }
 
     func refresh(views: [String]) {
+        let locale = Settings.shared.language == "en" ? "en" : "de"
         let theme = Self.resolvedTheme()
         for id in Set(views.compactMap(Self.id(from:))) {
             guard var record = records[id] else { continue }
@@ -269,10 +278,12 @@ final class DisplayPlugins {
             let interval = TimeInterval(record.info["intervalSeconds"] as? Int ?? 900)
             let now = Date()
             let retryAfter = record.error == nil ? interval : min(interval, 60)
-            // Nur fertige Szenen im anderen Theme sofort neu rendern. Nach einem
-            // Fehler gilt die Wartezeit, sonst ruft onChange -> refresh endlos ab.
-            let themeChanged = record.error == nil && record.sceneTheme != nil && record.sceneTheme != theme
-            if !themeChanged,
+            // Nur fertige Szenen ohne Fehler sofort neu rendern. Nach Fehlern
+            // gilt die Wartezeit, sonst kann onChange eine Abrufschleife auslösen.
+            let sceneChanged = record.error == nil && record.fetchedAt != nil &&
+                record.sceneLocale != nil && record.sceneTheme != nil &&
+                (record.sceneLocale != locale || record.sceneTheme != theme)
+            if !sceneChanged,
                let attempt = record.lastAttempt, now.timeIntervalSince(attempt) < retryAfter { continue }
             record.lastAttempt = now
             records[id] = record
@@ -281,7 +292,8 @@ final class DisplayPlugins {
             let settings = settingsPath(id).path
             let generation = record.generation
             DispatchQueue.global(qos: .utility).async {
-                let result = Result { try Self.helper(["render", package, settings, "all", "--theme=\(theme)"]) }
+                let result = Result { try Self.helper(["render", package, settings, "all",
+                                                        "--theme=\(theme)", "--locale=\(locale)"]) }
                 DispatchQueue.main.async {
                     self.fetching.remove(id)
                     guard var current = self.records[id], current.packageURL.path == package,
@@ -292,6 +304,7 @@ final class DisplayPlugins {
                            scenes["portrait"] != nil, scenes["landscape"] != nil,
                            scenes["square"] != nil {
                             current.scenes = scenes
+                            current.sceneLocale = locale
                             current.sceneTheme = theme
                             current.fetchedAt = Date()
                             current.error = nil
@@ -303,7 +316,8 @@ final class DisplayPlugins {
                     }
                     self.records[id] = current
                     self.onChange?()
-                    if Self.resolvedTheme() != theme {
+                    if Self.resolvedTheme() != theme ||
+                       (Settings.shared.language == "en" ? "en" : "de") != locale {
                         self.refresh(views: Settings.shared.displayViews)
                     }
                 }
@@ -317,9 +331,9 @@ final class DisplayPlugins {
         guard let record = records[id] else {
             return Self.statusScene(text("missing"), text("missing.hint"), theme: theme)
         }
-        let title = record.info["viewLabel"] as? String ?? "Plugin"
+        let title = Self.localized(record.info["viewLabel"] as? String ?? "Plugin", info: record.info, locale: language)
         if record.error != nil { return Self.statusScene(title, text("unavailable"), theme: theme) }
-        // Bei einem Theme-Wechsel die vorhandene Szene bis zur neuen Antwort stehen lassen.
+        // Bei einem Theme- oder Sprachwechsel die vorhandene Szene bis zur neuen Antwort stehen lassen.
         guard let scene = record.scenes[layout], let fetched = record.fetchedAt else {
             return Self.statusScene(title, text("loading"), theme: theme)
         }

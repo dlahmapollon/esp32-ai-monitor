@@ -31,6 +31,7 @@ pub struct PluginPreview {
     pub sha256: String,
     pub signed: bool,
     pub settings_spec: Vec<Setting>,
+    pub localizations: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,6 +48,7 @@ pub struct PluginInfo {
     pub sha256: String,
     pub signed: bool,
     pub settings_spec: Vec<Setting>,
+    pub localizations: BTreeMap<String, BTreeMap<String, String>>,
     pub settings: Map<String, Value>,
     pub fetched_at: Option<DateTime<Utc>>,
     pub last_error: Option<String>,
@@ -84,6 +86,7 @@ impl PluginRecord {
             sha256: self.sha256.clone(),
             signed: false,
             settings_spec: self.manifest.settings.clone(),
+            localizations: self.manifest.localizations.clone(),
             settings: self.settings.clone(),
             fetched_at: self.fetched_at,
             last_error: self.last_error.clone(),
@@ -91,16 +94,17 @@ impl PluginRecord {
     }
 
     pub fn scene(&self, layout: SceneLayout, language: Language, theme: Theme) -> Value {
+        let title = self.manifest.localized(language.wire(), &self.manifest.view_label);
         if let Some(error) = &self.last_error {
             // Auf 60 Zeichen kürzen, sonst ersetzt status_scene die Meldung.
             let message: String = format!("{}: {error}", status_text("unavailable", language))
                 .chars()
                 .take(60)
                 .collect();
-            return status_scene_with_theme(&self.manifest.view_label, &message, theme);
+            return status_scene_with_theme(title, &message, theme);
         }
         let Some(data) = &self.data else {
-            return status_scene_with_theme(&self.manifest.view_label, status_text("loading", language), theme);
+            return status_scene_with_theme(title, status_text("loading", language), theme);
         };
         let stale_after =
             chrono::Duration::seconds(self.manifest.source.interval_seconds as i64 * 3);
@@ -108,12 +112,12 @@ impl PluginRecord {
             .fetched_at
             .is_none_or(|time| Utc::now() - time > stale_after)
         {
-            return status_scene_with_theme(&self.manifest.view_label, status_text("stale", language), theme);
+            return status_scene_with_theme(title, status_text("stale", language), theme);
         }
         self.manifest
-            .scene_with_theme(layout, data, &self.settings, theme)
+            .scene_with_theme_and_locale(layout, data, &self.settings, theme, language.wire())
             .unwrap_or_else(|_| {
-                status_scene_with_theme(&self.manifest.view_label, status_text("render", language), theme)
+                status_scene_with_theme(title, status_text("render", language), theme)
             })
     }
 }
@@ -461,6 +465,7 @@ pub fn inspect(bytes: &[u8]) -> Result<PluginPreview, String> {
         sha256: package.sha256,
         signed: false,
         settings_spec: manifest.settings,
+        localizations: manifest.localizations,
     })
 }
 

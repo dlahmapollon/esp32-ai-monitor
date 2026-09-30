@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import type { ConnectionSnapshot, PluginInfo, ProviderInfo, Settings, ViewContent } from "../api";
+import { pluginText, type ConnectionSnapshot, type PluginInfo, type ProviderInfo, type Settings, type ViewContent } from "../api";
 import type { Translate } from "../i18n";
 
 interface Props {
   t: Translate;
+  locale: string;
   settings: Settings;
   providers: ProviderInfo[];
   plugins: PluginInfo[];
@@ -18,7 +19,7 @@ const GLYPHS: Record<string, string> = {
   gemini: "✧", copilot: "◆", cursor: "⬡",
 };
 
-export default function ViewManager({ t, settings, providers, plugins, connection, onSettings }: Props) {
+export default function ViewManager({ t, locale, settings, providers, plugins, connection, onSettings }: Props) {
   const [selected, setSelected] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dragPoint, setDragPoint] = useState<{ x: number; y: number } | null>(null);
@@ -40,7 +41,7 @@ export default function ViewManager({ t, settings, providers, plugins, connectio
   const label = (content: ViewContent) => content.kind === "clock"
     ? t("views.clock")
     : content.kind === "plugin"
-      ? plugins.find((p) => p.id === content.provider)?.viewLabel ?? content.provider
+      ? (() => { const plugin = plugins.find((p) => p.id === content.provider); return plugin ? pluginText(plugin, locale, plugin.viewLabel) : content.provider; })()
       : providers.find((p) => p.key === content.provider)?.label ?? content.provider;
   const glyph = (content: ViewContent) => content.kind === "plugin"
     ? "◇" : GLYPHS[content.kind === "clock" ? "clock" : content.provider];

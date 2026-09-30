@@ -68,12 +68,21 @@ pub fn start_fetch(app: &AppHandle) {
 
 /// Timer-Thread: sofort abrufen, dann im festen Intervall.
 pub fn start_timer(app: AppHandle) {
+    let plugins_app = app.clone();
+    std::thread::Builder::new()
+        .name("aimonitor-plugin-poll".into())
+        .spawn(move || loop {
+            refresh_plugins(&plugins_app);
+            // PluginStore retries failed requests after 60 seconds. Keep its
+            // scheduler independent of the 180-second provider poll.
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        })
+        .expect("Plugin poll thread");
     std::thread::Builder::new()
         .name("aimonitor-poll".into())
         .spawn(move || loop {
             start_fetch(&app);
             refresh_views(&app);
-            refresh_plugins(&app);
             std::thread::sleep(POLL_INTERVAL);
         })
         .expect("Poll-Thread");

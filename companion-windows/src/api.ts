@@ -100,6 +100,11 @@ export interface PluginPreview {
   sha256: string;
   signed: boolean;
   settingsSpec: PluginSettingSpec[];
+  localizations?: Record<string, Record<string, string>>;
+}
+
+export function pluginText(plugin: PluginPreview, locale: string, source: string): string {
+  return plugin.localizations?.[locale]?.[source] ?? source;
 }
 
 export interface PluginInfo extends PluginPreview {

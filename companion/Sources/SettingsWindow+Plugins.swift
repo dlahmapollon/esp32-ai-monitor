@@ -57,7 +57,7 @@ extension SettingsWindowController {
         for id in records.keys.sorted() {
             guard let record = records[id] else { continue }
             let info = record.info
-            let name = info["name"] as? String ?? id
+            let name = DisplayPlugins.localized(info["name"] as? String ?? id, info: info)
             let version = info["version"] as? String ?? ""
             let title = makeSectionHeading("\(name)  \(version)")
             let origin = info["sourceOrigin"] as? String ?? "?"
@@ -66,7 +66,7 @@ extension SettingsWindowController {
                 L("plugins.detail", id, author, origin))
             detail.font = NSFont.appFont(.subheadline)
             detail.textColor = .secondaryLabelColor
-            let attribution = info["attribution"] as? String ?? ""
+            let attribution = DisplayPlugins.localized(info["attribution"] as? String ?? "", info: info)
             let credit = NSTextField(wrappingLabelWithString: attribution)
             credit.font = NSFont.appFont(.subheadline)
             credit.textColor = .secondaryLabelColor
@@ -86,7 +86,7 @@ extension SettingsWindowController {
             var rows: [NSView] = [title, detail, credit, status]
             for spec in info["settingsSpec"] as? [[String: Any]] ?? [] {
                 guard let key = spec["key"] as? String else { continue }
-                let label = spec["label"] as? String ?? key
+                let label = DisplayPlugins.localized(spec["label"] as? String ?? key, info: info)
                 let value = record.settings[key]
                 let field = NSTextField(string: value.map { "\($0)" } ?? "")
                 field.translatesAutoresizingMaskIntoConstraints = false
@@ -134,7 +134,7 @@ extension SettingsWindowController {
             switch result {
             case .success(let info):
                 self.pluginPreview = info
-                let name = info["name"] as? String ?? "?"
+                let name = DisplayPlugins.localized(info["name"] as? String ?? "?", info: info)
                 let author = info["author"] as? String ?? "?"
                 let origin = info["sourceOrigin"] as? String ?? "?"
                 let hash = info["sha256"] as? String ?? "?"
@@ -157,7 +157,7 @@ extension SettingsWindowController {
             switch result {
             case .success(let info):
                 self.pluginPreview = nil
-                self.pluginPreviewLabel.stringValue = L("plugins.installed", info["name"] as? String ?? "Plugin")
+                self.pluginPreviewLabel.stringValue = L("plugins.installed", DisplayPlugins.localized(info["name"] as? String ?? "Plugin", info: info))
                 self.updatePluginsSection(force: true)
                 self.updateViewsSection(force: true)
             case .failure(let error):

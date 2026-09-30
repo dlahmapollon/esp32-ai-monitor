@@ -110,6 +110,10 @@ pub struct Manifest {
     pub settings: Vec<Setting>,
     pub bindings: Vec<Binding>,
     pub scenes: SceneVariants,
+    /// Optional exact-text translations of author-supplied display strings.
+    /// Missing locales and entries use the manifest's original text.
+    #[serde(default)]
+    pub localizations: BTreeMap<String, BTreeMap<String, String>>,
     #[serde(default)]
     pub light_scenes: Option<SceneVariants>,
 }
@@ -280,7 +284,12 @@ impl Manifest {
                 || binding
                     .map
                     .iter()
-                    .any(|(k, v)| !printable(k, 30) || !printable(v, 64))
+                    .any(|(k, v)| {
+                        !printable(k, 30)
+                            || !printable(v, 64)
+                            || (binding.format == BindingFormat::Map
+                                && v.len() + binding.suffix.len() > 64)
+                    })
             {
                 return Err("invalid binding".into());
             }
@@ -303,7 +312,74 @@ impl Manifest {
                 }
             }
         }
+        if self.localizations.len() > 16
+            || self.localizations.iter().any(|(locale, entries)| {
+                !valid_key(locale, 16)
+                    || entries.len() > 100
+                    || entries.iter().any(|(source, translated)| {
+                        !printable(source, 300)
+                            || source.is_empty()
+                            || !printable(translated, 300)
+                            || translated.is_empty()
+                    })
+            })
+        {
+            return Err("invalid plugin localizations".into());
+        }
+        for (locale, _) in &self.localizations {
+            if !printable(self.localized(locale, &self.name), 60)
+                || !printable(self.localized(locale, &self.author), 80)
+                || !printable(self.localized(locale, &self.description), 300)
+                || !printable(self.localized(locale, &self.view_label), 24)
+                || self
+                    .attribution
+                    .as_ref()
+                    .is_some_and(|value| !printable(self.localized(locale, value), 100))
+                || self
+                    .settings
+                    .iter()
+                    .any(|setting| !printable(self.localized(locale, &setting.label), 40))
+            {
+                return Err("localized metadata too long".into());
+            }
+            for binding in &self.bindings {
+                for value in binding.map.values() {
+                    let translated = self.localized(locale, value);
+                    if !printable(translated, 64)
+                        || (binding.format == BindingFormat::Map
+                            && translated.len() + binding.suffix.len() > 64)
+                    {
+                        return Err("localized binding too long".into());
+                    }
+                }
+                if !printable(self.localized(locale, &binding.fallback), 64) {
+                    return Err("localized binding too long".into());
+                }
+            }
+            for variants in std::iter::once(&self.scenes).chain(self.light_scenes.as_ref()) {
+                for scene in [&variants.portrait, &variants.landscape]
+                    .into_iter()
+                    .chain(variants.square.as_ref())
+                {
+                    for node in &scene.nodes {
+                        if let Some(source) = node.get("text").and_then(Value::as_str) {
+                            let mut translated = node.clone();
+                            translated["text"] = json!(self.localized(locale, source));
+                            validate_template_node(&translated, &names, &self.bindings)?;
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
+    }
+
+    pub fn localized<'a>(&'a self, locale: &str, source: &'a str) -> &'a str {
+        self.localizations
+            .get(locale)
+            .and_then(|entries| entries.get(source))
+            .map(String::as_str)
+            .unwrap_or(source)
     }
 
     pub fn default_settings(&self) -> Map<String, Value> {
@@ -346,7 +422,17 @@ impl Manifest {
         data: &Value,
         settings: &Map<String, Value>,
     ) -> Result<Value, String> {
-        self.scene_with_theme(layout, data, settings, Theme::Dark)
+        self.scene_with_theme_and_locale(layout, data, settings, Theme::Dark, "en")
+    }
+
+    pub fn scene_localized(
+        &self,
+        layout: SceneLayout,
+        data: &Value,
+        settings: &Map<String, Value>,
+        locale: &str,
+    ) -> Result<Value, String> {
+        self.scene_with_theme_and_locale(layout, data, settings, Theme::Dark, locale)
     }
 
     pub fn scene_with_theme(
@@ -356,6 +442,17 @@ impl Manifest {
         settings: &Map<String, Value>,
         theme: Theme,
     ) -> Result<Value, String> {
+        self.scene_with_theme_and_locale(layout, data, settings, theme, "en")
+    }
+
+    pub fn scene_with_theme_and_locale(
+        &self,
+        layout: SceneLayout,
+        data: &Value,
+        settings: &Map<String, Value>,
+        theme: Theme,
+        locale: &str,
+    ) -> Result<Value, String> {
         for setting in &self.settings {
             validate_setting(
                 setting,
@@ -363,16 +460,36 @@ impl Manifest {
             )?;
         }
         let mut values = BTreeMap::new();
+        let mut condition_values = BTreeMap::new();
         for binding in &self.bindings {
             let source = if binding.path.starts_with("settings.") {
                 settings.get(&binding.path[9..])
             } else {
                 lookup(data, &binding.path)
             };
-            let formatted = format_binding(binding, source);
+            let resolved = binding_value(binding, source);
+            let unlocalized = resolved
+                .as_ref()
+                .map(|value| format!("{}{}", value, binding.suffix))
+                .unwrap_or_else(|| binding.fallback.clone());
+            let formatted = match (&resolved, binding.format) {
+                (Some(value), BindingFormat::Map) => {
+                    format!("{}{}", self.localized(locale, value), binding.suffix)
+                }
+                (None, BindingFormat::Map | BindingFormat::Text) => {
+                    self.localized(locale, &binding.fallback).to_owned()
+                }
+                (None, BindingFormat::Integer | BindingFormat::Decimal1)
+                    if !binding.fallback.parse::<f64>().is_ok_and(f64::is_finite) =>
+                {
+                    self.localized(locale, &binding.fallback).to_owned()
+                }
+                _ => unlocalized.clone(),
+            };
             if !printable(&formatted, 64) {
                 return Err("binding text too long".into());
             }
+            condition_values.insert(binding.name.as_str(), unlocalized);
             values.insert(binding.name.as_str(), formatted);
         }
         let scenes = if theme == Theme::Light {
@@ -398,13 +515,13 @@ impl Manifest {
                     .get("equals")
                     .and_then(Value::as_str)
                     .ok_or("invalid condition")?;
-                if values.get(binding).is_none_or(|value| value != expected) {
+                if condition_values.get(binding).is_none_or(|value| value != expected) {
                     continue;
                 }
             }
             if let Some(text) = object.get_mut("text") {
                 let original = text.as_str().ok_or("invalid text")?;
-                let mut rendered = original.to_owned();
+                let mut rendered = self.localized(locale, original).to_owned();
                 for (key, value) in &values {
                     rendered = rendered.replace(&format!("{{{{{key}}}}}"), value);
                 }
@@ -480,11 +597,9 @@ fn lookup<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
     })
 }
 
-fn format_binding(binding: &Binding, value: Option<&Value>) -> String {
-    let Some(value) = value else {
-        return binding.fallback.clone();
-    };
-    let rendered = match binding.format {
+fn binding_value(binding: &Binding, value: Option<&Value>) -> Option<String> {
+    let value = value?;
+    match binding.format {
         BindingFormat::Text => value
             .as_str()
             .map(str::to_owned)
@@ -498,10 +613,7 @@ fn format_binding(binding: &Binding, value: Option<&Value>) -> String {
                 .unwrap_or_else(|| value.to_string());
             binding.map.get(&key).cloned()
         }
-    };
-    rendered
-        .map(|v| format!("{}{}", v, binding.suffix))
-        .unwrap_or_else(|| binding.fallback.clone())
+    }
 }
 
 fn number(node: &Value, key: &str) -> Result<i64, String> {
@@ -555,6 +667,9 @@ fn validate_template_node(
         let mut value = text.as_str().ok_or("invalid text")?.to_string();
         for name in bindings {
             value = value.replace(&format!("{{{{{name}}}}}"), "X");
+        }
+        if value.contains("{{") {
+            return Err("unknown text binding".into());
         }
         *text = Value::String(value);
     }
@@ -634,8 +749,10 @@ mod tests {
     }
 
     fn fixture() -> Manifest {
-        parse_manifest(include_bytes!("../../../../tests/fixtures/display-plugin/plugin.json"))
-            .unwrap()
+        parse_manifest(include_bytes!(
+            "../../../../tests/fixtures/display-plugin/plugin.json"
+        ))
+        .unwrap()
     }
 
     #[test]
@@ -666,6 +783,190 @@ mod tests {
     }
 
     #[test]
+    fn localizations_translate_static_and_mapped_text_with_fallback() {
+        let mut plugin = fixture();
+        plugin.localizations.insert(
+            "de".into(),
+            BTreeMap::from([
+                ("English label".into(), "Deutscher Text".into()),
+                ("Active".into(), "Aktiv".into()),
+                ("Level {{level}}%".into(), "Stand {{level}}%".into()),
+            ]),
+        );
+        let response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        ))
+        .unwrap();
+        let settings = plugin.default_settings();
+        // Use a simple scene text to exercise translation before interpolation.
+        plugin.scenes.portrait.nodes.push(json!({
+            "type":"text", "x":0, "y":0, "w":200, "h":30,
+            "color":16777215, "text":"English label"
+        }));
+        plugin.validate().unwrap();
+        let de = plugin
+            .scene_localized(SceneLayout::Portrait, &response, &settings, "de")
+            .unwrap();
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "Deutscher Text"));
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "Aktiv"));
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "Stand 62%"));
+        assert!(de["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["type"] == "circle"));
+        let fr = plugin
+            .scene_localized(SceneLayout::Portrait, &response, &settings, "fr")
+            .unwrap();
+        assert!(fr["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["text"] == "English label"));
+        plugin.localizations.get_mut("de").unwrap().insert(
+            "Level {{level}}%".into(),
+            "Stand {{unknown}}%".into(),
+        );
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn localized_fallbacks_keep_conditions_independent_of_display_text() {
+        let mut plugin = fixture();
+        plugin.bindings.push(Binding {
+            name: "condition".into(),
+            path: "metric.condition".into(),
+            format: BindingFormat::Text,
+            suffix: String::new(),
+            map: BTreeMap::new(),
+            fallback: "Unknown".into(),
+        });
+        for expected in ["Unknown", "Clear"] {
+            plugin.scenes.portrait.nodes.push(json!({
+                "type":"text", "x":0, "y":0, "w":200, "h":30,
+                "color":16777215, "text":"{{condition}}",
+                "visibleWhen":{"binding":"condition", "equals":expected}
+            }));
+        }
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Unknown".into(), "Unbekannt".into()),
+            ("Clear".into(), "Klar".into()),
+            ("-- pts".into(), "-- Punkte".into()),
+            ("0".into(), "Null".into()),
+        ]));
+        plugin.validate().unwrap();
+        let mut response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        response["metric"].as_object_mut().unwrap().remove("value");
+        response["metric"].as_object_mut().unwrap().remove("level");
+        let settings = plugin.default_settings();
+        let fallback_scene = plugin.scene_localized(
+            SceneLayout::Portrait, &response, &settings, "de",
+        ).unwrap();
+        let fallback_nodes = fallback_scene["nodes"].as_array().unwrap();
+        assert!(fallback_nodes.iter().any(|node| node["text"] == "Unbekannt"));
+        assert!(fallback_nodes.iter().any(|node| node["text"] == "-- Punkte"));
+        assert!(fallback_nodes.iter().any(|node| node["type"] == "bar" && node["value"] == 0));
+        assert!(!fallback_nodes.iter().any(|node| node["text"] == "Clear"));
+
+        response["metric"]["condition"] = json!("Clear");
+        let source_scene = plugin.scene_localized(
+            SceneLayout::Portrait, &response, &settings, "de",
+        ).unwrap();
+        let source_nodes = source_scene["nodes"].as_array().unwrap();
+        assert!(source_nodes.iter().any(|node| node["text"] == "Clear"));
+        assert!(!source_nodes.iter().any(|node| node["text"] == "Unbekannt"));
+
+        plugin.bindings.iter_mut().find(|binding| binding.name == "value").unwrap().fallback =
+            "NaN".into();
+        plugin.localizations.get_mut("de").unwrap().insert(
+            "NaN".into(), "Kein Wert".into(),
+        );
+        let nan_scene = plugin.scene_localized(
+            SceneLayout::Portrait, &response, &settings, "de",
+        ).unwrap();
+        assert!(nan_scene["nodes"].as_array().unwrap().iter().any(
+            |node| node["text"] == "Kein Wert"
+        ));
+    }
+
+    #[test]
+    fn translated_map_values_include_suffix_in_length_validation() {
+        let mut plugin = fixture();
+        plugin.bindings.iter_mut().find(|binding| binding.name == "state").unwrap().suffix =
+            " load".into();
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Active".into(), "X".repeat(60)),
+        ]));
+        assert_eq!(plugin.validate(), Err("localized binding too long".into()));
+        plugin.localizations.clear();
+        plugin.bindings.iter_mut().find(|binding| binding.name == "state").unwrap()
+            .map.insert("1".into(), "X".repeat(60));
+        assert_eq!(plugin.validate(), Err("invalid binding".into()));
+    }
+
+    #[test]
+    fn translated_metadata_uses_the_original_field_limits() {
+        let mut plugin = fixture();
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            (plugin.view_label.clone(), "X".repeat(25)),
+        ]));
+        assert_eq!(plugin.validate(), Err("localized metadata too long".into()));
+        plugin.localizations.get_mut("de").unwrap().insert(
+            plugin.view_label.clone(), "Ansicht".into(),
+        );
+        plugin.localizations.get_mut("de").unwrap().insert(
+            plugin.settings[0].label.clone(), "X".repeat(41),
+        );
+        assert_eq!(plugin.validate(), Err("localized metadata too long".into()));
+    }
+
+    #[test]
+    fn unknown_placeholder_is_rejected_without_localizations() {
+        let mut plugin = fixture();
+        assert!(plugin.localizations.is_empty());
+        plugin.scenes.portrait.nodes[6]["text"] = json!("Level {{unknown}}%");
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn localized_light_scene_text_is_rendered_and_validated() {
+        let mut plugin = fixture();
+        let mut light = plugin.scenes.clone();
+        light.portrait.nodes[6]["text"] = json!("Light {{level}}%");
+        plugin.light_scenes = Some(light);
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Light {{level}}%".into(), "Hell {{level}}%".into()),
+        ]));
+        plugin.validate().unwrap();
+        let response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        let scene = plugin.scene_with_theme_and_locale(
+            SceneLayout::Portrait, &response, &plugin.default_settings(), Theme::Light, "de",
+        ).unwrap();
+        assert!(scene["nodes"].as_array().unwrap().iter().any(|n| n["text"] == "Hell 62%"));
+
+        plugin.localizations.get_mut("de").unwrap().insert(
+            "Light {{level}}%".into(), "Hell {{unknown}}%".into(),
+        );
+        assert!(plugin.validate().is_err());
+    }
+
+    #[test]
     fn light_scenes_select_each_layout_and_legacy_plugins_fall_back() {
         let mut plugin = fixture();
         let settings = plugin.default_settings();
@@ -693,6 +994,22 @@ mod tests {
         assert_eq!(plugin.scene(SceneLayout::Portrait, &response, &settings).unwrap()["background"], legacy_dark["background"]);
         plugin.light_scenes.as_mut().unwrap().portrait.nodes[0]["color"] = json!(0x1_000000);
         assert!(plugin.validate().is_err());
+    }
+
+    #[test]
+    fn localized_map_fallback_keeps_existing_suffix_behavior() {
+        let mut plugin = fixture();
+        let state = plugin.bindings.iter_mut().find(|b| b.name == "state").unwrap();
+        state.suffix = "!".into();
+        plugin.localizations.insert("de".into(), BTreeMap::from([
+            ("Unknown".into(), "Unbekannt".into()),
+        ]));
+        let mut response: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/display-plugin/response.json"
+        )).unwrap();
+        response["metric"]["state"] = json!(99);
+        let scene = plugin.scene_localized(SceneLayout::Portrait, &response, &plugin.default_settings(), "de").unwrap();
+        assert!(scene["nodes"].as_array().unwrap().iter().any(|n| n["text"] == "Unbekannt"));
     }
 
     #[test]

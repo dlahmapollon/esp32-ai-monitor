@@ -20,10 +20,10 @@ use aimonitor_core::envelope::{
 };
 use aimonitor_core::plugin::{scene_envelope, status_scene_with_theme, status_text, SceneLayout};
 use aimonitor_core::protocol::{
-    Command, DisplayVariant, FrameIdCounter, Language, Orientation, ThemeSetting, DIAGNOSTIC_AFTER_CONNECT,
-    DIAGNOSTIC_RESTORE, GET_INFO_TIMEOUT, HEARTBEAT_INTERVAL, LATE_INFO_WINDOW,
-    RECONNECT_BLOCK_WINDOW, REPAIR_COOLDOWN, REPAIR_RECONNECT_DELAY, REPAIR_THRESHOLD,
-    SCAN_INTERVAL, SEND_DEBOUNCE,
+    Command, DisplayVariant, FrameIdCounter, Language, Orientation, ThemeSetting,
+    DIAGNOSTIC_AFTER_CONNECT, DIAGNOSTIC_RESTORE, GET_INFO_TIMEOUT, HEARTBEAT_INTERVAL,
+    LATE_INFO_WINDOW, RECONNECT_BLOCK_WINDOW, REPAIR_COOLDOWN, REPAIR_RECONNECT_DELAY,
+    REPAIR_THRESHOLD, SCAN_INTERVAL, SEND_DEBOUNCE,
 };
 use aimonitor_core::protocol::{DeviceMessage, ViewState};
 use aimonitor_core::{DeviceInfo, DeviceProfile, Snapshot};
