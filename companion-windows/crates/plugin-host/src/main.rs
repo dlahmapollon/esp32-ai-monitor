@@ -134,7 +134,7 @@ fn parse_arguments(raw_args: Vec<String>) -> Result<(Vec<String>, Theme, String)
                     return Err("duplicate plugin locale".into());
                 }
                 if value.is_empty() || value.len() > 16 || !value.bytes().all(|b| {
-                    b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-'
+                    b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'-' | b'_')
                 }) {
                     return Err("invalid plugin locale".into());
                 }
@@ -259,6 +259,10 @@ mod tests {
         let default = parse_arguments(expected.iter().map(|s| s.to_string()).collect()).unwrap();
         assert_eq!(default.1, Theme::Dark);
         assert_eq!(default.2, "en");
+        for locale in ["pt_br", "pt.br"] {
+            let input = vec!["host".to_owned(), format!("--locale={locale}")];
+            assert_eq!(parse_arguments(input).unwrap().2, locale);
+        }
         for options in [
             vec!["--theme=light", "--theme=dark"],
             vec!["--locale=de", "--locale=en"],

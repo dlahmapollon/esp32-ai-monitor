@@ -39,15 +39,21 @@ Keys are the original text from metadata, setting labels, scene text templates,
 binding maps, or fallbacks. The companion selects the display language for
 scenes and its UI language for plugin names and setting labels. Missing entries
 use the original text. Keep `{{binding_name}}` placeholders in translated scene
-templates. `visibleWhen.equals` continues to match localized map values, so a
-condition need not be duplicated per language. Localized display text remains
-printable ASCII with the current scene protocol. Companions released before
-this extension reject packages containing `localizations`.
+templates. `visibleWhen.equals` is compared with the binding's original
+formatted value, so a condition need not be duplicated per language. Map
+values and text fallbacks are translated for display; numeric fallbacks remain
+numeric so they can still drive bars. Non-numeric fallbacks for numeric bindings
+can be translated. Translated metadata and setting labels must fit the same
+length limits as their originals. Localized display text remains printable
+ASCII with the current scene protocol. Companions released before this
+extension reject packages containing `localizations`.
 
 Release compatibility note: Unknown `{{...}}` placeholders now cause plugin
-installation to fail for every package, including packages without
-`localizations`. Earlier companions installed those packages and displayed the
-typo literally.
+installation or startup loading to fail for every package, including packages
+without `localizations`. Earlier companions accepted those packages; a node
+using the unknown placeholder failed to render when it was shown. Existing
+packages with such placeholders must be corrected and reinstalled before they
+load in this version.
 
 Firmware reports `sceneProtocol: 1` through `get_info`. Older firmware cannot
 display plugin windows. The companion keeps up to 20 installed plugins; the
