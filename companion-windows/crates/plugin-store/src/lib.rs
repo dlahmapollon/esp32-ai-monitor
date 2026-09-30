@@ -348,20 +348,24 @@ impl PluginStore {
         sha256: &str,
         settings: &Map<String, Value>,
         result: Result<Value, String>,
-    ) {
+    ) -> bool {
         let Some(record) = self.records.get_mut(id) else {
-            return;
+            return false;
         };
         if record.sha256 != sha256 || &record.settings != settings {
-            return;
+            return false;
         }
         match result {
             Ok(value) => {
                 record.data = Some(value);
                 record.fetched_at = Some(Utc::now());
                 record.last_error = None;
+                true
             }
-            Err(error) => record.last_error = Some(error.chars().take(60).collect()),
+            Err(error) => {
+                record.last_error = Some(error.chars().take(60).collect());
+                false
+            }
         }
     }
 }
@@ -575,11 +579,11 @@ mod tests {
         let mut updated = old_settings.clone();
         updated.insert("label".into(), json!("Updated"));
         store.configure(id, updated.clone()).unwrap();
-        store.apply_fetch(id, sha256, old_settings, Ok(response.clone()));
+        assert!(!store.apply_fetch(id, sha256, old_settings, Ok(response.clone())));
         assert!(store.records[id].data.is_none());
         let due = store.due_fetches(&assigned);
         assert_eq!(due.len(), 1);
-        store.apply_fetch(id, &due[0].1, &updated, Ok(response));
+        assert!(store.apply_fetch(id, &due[0].1, &updated, Ok(response)));
         let scene = store.records[id].scene(SceneLayout::Portrait, Language::En, Theme::Dark);
         assert!(scene["nodes"]
             .as_array()
@@ -587,7 +591,7 @@ mod tests {
             .iter()
             .any(|node| node["text"] == "Updated"));
 
-        store.apply_fetch(id, &due[0].1, &updated, Err("offline".into()));
+        assert!(!store.apply_fetch(id, &due[0].1, &updated, Err("offline".into())));
         let unavailable = store.records[id].scene(SceneLayout::Portrait, Language::En, Theme::Dark);
         assert!(unavailable["nodes"]
             .as_array()
