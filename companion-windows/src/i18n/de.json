@@ -27,7 +27,7 @@
   "cc.hooks.missing": "Hooks noch nicht eingerichtet",
   "cc.hooks.outdated": "Hooks veraltet, bitte neu einrichten",
   "cc.install": "Hooks einrichten…",
-  "cc.install.confirm": "AI Monitor trägt in {path} HTTP-Hooks für Claude Code ein. Sie melden Ereignisse wie „wartet auf Freigabe“ oder „fertig“ an 127.0.0.1. Vorhandene Einträge bleiben erhalten, der bisherige Stand wird als settings.json.aimonitor-backup gesichert. Laufende Claude-Code-Sessions übernehmen die Hooks erst nach einem Neustart. Fortfahren?",
+  "cc.install.confirm": "AI Monitor trägt in {path} HTTP-Hooks für Claude Code ein. Sie melden Ereignisse wie „wartet auf Freigabe“ oder „fertig“ an 127.0.0.1. Vorhandene Einträge bleiben erhalten, der bisherige Stand wird als settings.json.aimonitor-backup gesichert. Laufende Claude-Code-Sessions übernehmen die Hooks normalerweise sofort, sonst nach einem Neustart. Fortfahren?",
   "cc.intro": "Eingebautes Fenster: zeigt auf dem Display, welche Claude-Code-Session auf eine Freigabe oder Eingabe wartet oder fertig ist. Claude Code meldet das über Hooks an diese App.",
   "cc.listener.failed": "Empfang auf Port {port} nicht möglich: {error}",
   "cc.listener.running": "Empfang bereit auf 127.0.0.1:{port}",
