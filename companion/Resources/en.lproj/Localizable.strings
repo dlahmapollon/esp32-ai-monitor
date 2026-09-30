@@ -284,7 +284,7 @@
 "cc.install" = "Set up hooks …";
 "cc.remove" = "Remove hooks …";
 "cc.install.title" = "Set up hooks for Claude Code?";
-"cc.install.confirm" = "AI Monitor will add HTTP hooks for Claude Code to %@. They report events such as \"needs approval\" or \"done\" to 127.0.0.1. Existing entries are kept, and the previous file is saved as settings.json.aimonitor-backup. Running Claude Code sessions pick up the hooks after a restart.";
+"cc.install.confirm" = "AI Monitor will add HTTP hooks for Claude Code to %@. They report events such as \"needs approval\" or \"done\" to 127.0.0.1. Existing entries are kept, and the previous file is saved as settings.json.aimonitor-backup. Running Claude Code sessions normally pick up the hooks right away, otherwise after a restart.";
 "cc.install.ok" = "Set up";
 "cc.remove.title" = "Remove AI Monitor hooks?";
 "cc.remove.confirm" = "The AI Monitor hooks will be removed from %@. Other entries are kept, and the previous file is saved as settings.json.aimonitor-backup.";

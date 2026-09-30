@@ -43,7 +43,9 @@ the Plugins page says so instead of showing a warning.
    saved as `settings.json.aimonitor-backup`, and invalid JSON is never
    overwritten. The file is rewritten with sorted keys.
 2. Add the **Claude Code** window in the window manager.
-3. Restart running Claude Code sessions so they load the hooks.
+3. Running Claude Code sessions normally pick up the hooks right away,
+   because Claude Code watches its settings files. If a session does not,
+   restart it.
 
 **Remove hooks** deletes only the companion's entries. They are recognized by
 an HTTP hook to `127.0.0.1` with the path `/claude-code`. If the token or the

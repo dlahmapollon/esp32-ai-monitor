@@ -284,7 +284,7 @@
 "cc.install" = "Hooks einrichten …";
 "cc.remove" = "Hooks entfernen …";
 "cc.install.title" = "Hooks für Claude Code einrichten?";
-"cc.install.confirm" = "AI Monitor trägt in %@ HTTP-Hooks für Claude Code ein. Sie melden Ereignisse wie „wartet auf Freigabe“ oder „fertig“ an 127.0.0.1. Vorhandene Einträge bleiben erhalten, der bisherige Stand wird als settings.json.aimonitor-backup gesichert. Laufende Claude-Code-Sessions übernehmen die Hooks erst nach einem Neustart.";
+"cc.install.confirm" = "AI Monitor trägt in %@ HTTP-Hooks für Claude Code ein. Sie melden Ereignisse wie „wartet auf Freigabe“ oder „fertig“ an 127.0.0.1. Vorhandene Einträge bleiben erhalten, der bisherige Stand wird als settings.json.aimonitor-backup gesichert. Laufende Claude-Code-Sessions übernehmen die Hooks normalerweise sofort, sonst nach einem Neustart.";
 "cc.install.ok" = "Einrichten";
 "cc.remove.title" = "Hooks von AI Monitor entfernen?";
 "cc.remove.confirm" = "Die Hooks von AI Monitor werden aus %@ entfernt. Andere Einträge bleiben erhalten, der bisherige Stand wird als settings.json.aimonitor-backup gesichert.";

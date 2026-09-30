@@ -27,7 +27,7 @@
   "cc.hooks.missing": "Hooks not set up yet",
   "cc.hooks.outdated": "Hooks outdated, please set them up again",
   "cc.install": "Set up hooks…",
-  "cc.install.confirm": "AI Monitor will add HTTP hooks for Claude Code to {path}. They report events such as \"needs approval\" or \"done\" to 127.0.0.1. Existing entries are kept, and the previous file is saved as settings.json.aimonitor-backup. Running Claude Code sessions pick up the hooks after a restart. Continue?",
+  "cc.install.confirm": "AI Monitor will add HTTP hooks for Claude Code to {path}. They report events such as \"needs approval\" or \"done\" to 127.0.0.1. Existing entries are kept, and the previous file is saved as settings.json.aimonitor-backup. Running Claude Code sessions normally pick up the hooks right away, otherwise after a restart. Continue?",
   "cc.intro": "Built-in window: shows on the display which Claude Code session is waiting for approval or input, or has finished. Claude Code reports this to this app through hooks.",
   "cc.listener.failed": "Cannot listen on port {port}: {error}",
   "cc.listener.running": "Listening on 127.0.0.1:{port}",
