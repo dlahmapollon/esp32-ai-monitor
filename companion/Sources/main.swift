@@ -2832,8 +2832,10 @@ class UsageMonitor {
         } else {
             layout = "landscape"
         }
-        let scene = DisplayPlugins.shared.scene(for: id, layout: layout,
-                                                language: Settings.shared.language)
+        let scene = id == ClaudeCodeWindow.viewID
+            ? ClaudeCodeWindow.shared.scene(layout: layout, language: Settings.shared.language,
+                                            theme: DisplayPlugins.resolvedTheme())
+            : DisplayPlugins.shared.scene(for: id, layout: layout, language: Settings.shared.language)
         let envelope: [String: Any] = [
             "schemaVersion": 2,
             "frameId": frameId,
@@ -2868,6 +2870,13 @@ class UsageMonitor {
             self?.onUpdate?()
             self?.scheduleUsageSend()
         }
+        ClaudeCodeWindow.shared.onChange = { [weak self] in
+            self?.onUpdate?()
+            if Settings.shared.displayViews.contains(ClaudeCodeWindow.view) {
+                self?.scheduleUsageSend()
+            }
+        }
+        ClaudeCodeWindow.shared.start()
         // CodexBar-Source: liefert neue Daten → Push an ESP32
         codexBar.onChange = { [weak self] in
             guard let self = self else { return }

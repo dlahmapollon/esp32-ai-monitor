@@ -17,6 +17,8 @@ Set `formatVersion` to `1`, `minSceneProtocol` to `1`, and `version` to three
 numeric components such as `1.0.0`. The `id` is stable across updates, starts
 with a lowercase letter, and contains at most 40 lowercase ASCII letters,
 digits, dots, hyphens, or underscores. A changed ID creates a different plugin.
+IDs starting with `builtin.` are reserved for built-in windows such as the
+[Claude Code window](claude-code-window.md).
 `name`, `author`, `description`, `viewLabel`, and optional `attribution` are
 shown to users. Version 1 requires printable ASCII in metadata and display
 text because the device font and wire validator currently use that subset.

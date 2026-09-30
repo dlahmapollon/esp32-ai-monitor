@@ -61,6 +61,7 @@ SWIFT_SOURCES=(
   Sources/SettingsWindow+Diagnostics.swift
   Sources/DisplayPlugins.swift
   Sources/SettingsWindow+Plugins.swift
+  Sources/ClaudeCodeWindow.swift
 )
 
 SLICES=()
@@ -70,6 +71,7 @@ for ARCH in arm64 x86_64; do
     "${SWIFT_SOURCES[@]}" \
     -framework Cocoa \
     -framework Security \
+    -framework Network \
     -framework ServiceManagement \
     -target "$ARCH-apple-macosx$MACOS_MIN" \
     -O \

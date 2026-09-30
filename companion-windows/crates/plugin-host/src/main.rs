@@ -1,6 +1,7 @@
 //! Small bundled process for the native Mac app. No arbitrary plugin code is
 //! executed: the package is a validated declarative manifest.
 
+use aimonitor_core::claude_code;
 use aimonitor_core::plugin::{Manifest, SceneLayout};
 use aimonitor_core::protocol::Theme;
 use aimonitor_core::plugin_package::{parse_package, MAX_PACKAGE_BYTES};
@@ -149,6 +150,9 @@ fn parse_arguments(raw_args: Vec<String>) -> Result<(Vec<String>, Theme, String)
 
 fn run() -> Result<Value, String> {
     let (args, theme, locale) = parse_arguments(env::args().collect())?;
+    if args.get(1).map(String::as_str) == Some("claude-hooks") {
+        return claude_hooks(&args);
+    }
     if args.len() < 3 {
         return Err("usage: aimonitor-plugin-host inspect|render PACKAGE [SETTINGS] [portrait|landscape|square|all] [FIXTURE]".into());
     }
@@ -225,6 +229,27 @@ fn run() -> Result<Value, String> {
         }
         _ => Err("invalid command or arguments".into()),
     }
+}
+
+/// `claude-hooks status|install|remove SETTINGS_PATH PORT` für die Mac-App.
+/// Das Token kommt über `AIMONITOR_CLAUDE_TOKEN`, nicht über die Argumente.
+fn claude_hooks(args: &[String]) -> Result<Value, String> {
+    if args.len() != 5 {
+        return Err("usage: aimonitor-plugin-host claude-hooks status|install|remove SETTINGS_PATH PORT".into());
+    }
+    let path = Path::new(&args[3]);
+    let port: u16 = args[4].parse().map_err(|_| "invalid port")?;
+    let token = env::var("AIMONITOR_CLAUDE_TOKEN").unwrap_or_default();
+    if token.is_empty() && args[2] != "remove" {
+        return Err("missing AIMONITOR_CLAUDE_TOKEN".into());
+    }
+    let status = match args[2].as_str() {
+        "status" => claude_code::file_hook_status(path, port, &token)?,
+        "install" => claude_code::write_hooks_file(path, true, port, &token)?,
+        "remove" => claude_code::write_hooks_file(path, false, port, &token)?,
+        _ => return Err("unknown claude-hooks action".into()),
+    };
+    Ok(json!({"status": status.wire()}))
 }
 
 fn main() {

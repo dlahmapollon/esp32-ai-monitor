@@ -64,6 +64,7 @@ final class DisplayPlugins {
 
     func label(for view: String) -> String {
         guard let id = Self.id(from: view) else { return view }
+        if id == ClaudeCodeWindow.viewID { return ClaudeCodeWindow.label }
         guard let info = records[id]?.info else { return id }
         return Self.localized(info["viewLabel"] as? String ?? id, info: info)
     }
@@ -83,7 +84,7 @@ final class DisplayPlugins {
 
     /// The helper is first-party code signed together with the app. Every
     /// package is checked before activation; this never executes plugin code.
-    static func helper(_ arguments: [String]) throws -> [String: Any] {
+    static func helper(_ arguments: [String], environment: [String: String] = [:]) throws -> [String: Any] {
         guard let binary = Bundle.main.executableURL?.deletingLastPathComponent()
             .appendingPathComponent("aimonitor-plugin-host"),
               FileManager.default.isExecutableFile(atPath: binary.path) else {
@@ -92,6 +93,9 @@ final class DisplayPlugins {
         let process = Process()
         process.executableURL = binary
         process.arguments = arguments
+        if !environment.isEmpty {
+            process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
+        }
         let output = Pipe()
         // Drain both streams while the helper runs. A separate stderr pipe
         // can fill up on a malformed package and deadlock before stdout EOF.

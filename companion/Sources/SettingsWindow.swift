@@ -80,6 +80,11 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     var pluginPreview: [String: Any]?
     var pluginSettingsFields: [String: [String: NSTextField]] = [:]
     var pluginsSignature = ""
+    var claudeCodeListenerLabel: NSTextField!
+    var claudeCodeHooksLabel: NSTextField!
+    var claudeCodeWaitingLabel: NSTextField!
+    var claudeCodeInstallButton: NSButton!
+    var claudeCodeRemoveButton: NSButton!
     var setupCopyButton: NSButton!
 
     // Linke Spalte — CodexBar
@@ -620,6 +625,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         updateSetupBox()
         updateViewsSection()
         updatePluginsSection()
+        updateClaudeCodeSection()
 
         // CodexBar
         let src = monitor.codexBar

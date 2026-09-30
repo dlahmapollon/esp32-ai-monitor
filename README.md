@@ -28,6 +28,13 @@ their data origin and unsigned status before installation. See the
 [plugin architecture](docs/display-plugins.md), [authoring guide](docs/display-plugin-authoring.md),
 and [acceptance test](docs/display-plugin-test.md).
 
+### Claude Code window (in development)
+
+A built-in window shows which Claude Code sessions are waiting for approval or
+input, or have finished. Claude Code reports this through HTTP hooks to the
+companion on `127.0.0.1`; the Plugins page sets the hooks up after a
+confirmation. See [Claude Code window](docs/claude-code-window.md).
+
 ## Features
 
 - Provider views for Claude, ChatGPT, Antigravity, Gemini CLI, GitHub Copilot, and Cursor
