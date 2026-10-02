@@ -83,6 +83,8 @@ pub enum Job {
     Resume {
         diagnostic_after_connect: bool,
     },
+    /// Zeile aus einem anderen Thread ins Ereignisprotokoll (z. B. Flash).
+    Log(String),
 }
 
 #[derive(Debug)]
@@ -132,6 +134,11 @@ pub fn send(app: &AppHandle, job: Job) {
     if let Err(e) = app.state::<AppState>().serial.send(job) {
         eprintln!("[aimonitor] Serial-Thread nimmt keine Aufträge mehr an: {e}");
     }
+}
+
+/// Zeile ins Ereignisprotokoll schreiben, das die Verbindungsseite zeigt.
+pub fn log(app: &AppHandle, text: impl Into<String>) {
+    send(app, Job::Log(text.into()));
 }
 
 pub fn request_resend(app: &AppHandle) {
@@ -530,6 +537,13 @@ impl Service {
             info.serial_transport.as_deref().unwrap_or("-"),
             info.max_frame_bytes()
         ));
+        if let Some(panel) = &info.panel {
+            self.log_event(format!(
+                "Panel {panel} ({}), Firmware-Variante {}",
+                info.panel_id.as_deref().unwrap_or("-"),
+                info.display.map_or("-", |d| d.wire())
+            ));
+        }
         let (profile, outcome) = {
             let state = self.app.state::<AppState>();
             let mut registry = state.registry.lock().unwrap();
@@ -1140,6 +1154,10 @@ impl Service {
                         ""
                     }
                 ));
+                self.publish();
+            }
+            Job::Log(text) => {
+                self.log_event(text);
                 self.publish();
             }
             Job::Shutdown(done) => {

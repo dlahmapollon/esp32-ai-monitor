@@ -64,6 +64,13 @@ fn classify(error: &FlashError) -> (&'static str, &'static str) {
     }
 }
 
+/// Auf die Konsole und ins Ereignisprotokoll der App. Unter Windows sieht
+/// niemand die Konsole, Berichte vom Gerät brauchen aber den Ablauf.
+fn note(app: &AppHandle, text: String) {
+    println!("[flash] {text}");
+    serial_service::log(app, format!("Flash: {text}"));
+}
+
 fn emit(app: &AppHandle, progress: FlashProgress) {
     if let Err(e) = app.emit(FLASH_EVENT, &progress) {
         eprintln!("[flash] Event nicht gesendet: {e}");
@@ -75,7 +82,7 @@ fn emit_phase(app: &AppHandle, variant: DisplayVariant, phase: &'static str, per
 }
 
 fn emit_failed(app: &AppHandle, variant: DisplayVariant, summary: &'static str, detail: &'static str, message: String) {
-    eprintln!("[flash] Fehlgeschlagen: {summary} ({message})");
+    note(app, format!("Fehlgeschlagen: {summary} ({message})"));
     emit(app, FlashProgress { phase: "failed", variant, percent: None, message: (!message.is_empty()).then_some(message), summary: Some(summary), detail: Some(detail) });
 }
 
@@ -150,13 +157,18 @@ pub fn panel_action(panel: Option<&str>, firmware: Option<DisplayVariant>, last:
 /// Serial-Service wie jeder andere.
 pub fn after_connect(app: &AppHandle, info: &DeviceInfo) {
     let state = app.state::<AppState>();
+    let reported = info.panel.is_some() && info.display.is_some();
     if state.flashing.load(Ordering::SeqCst) {
+        if reported {
+            note(app, "Panel-Abgleich übersprungen, ein Flash läuft noch".into());
+        }
         return;
     }
     let last = *state.last_flash.lock().unwrap();
-    let action = panel_action(info.panel.as_deref(), info.display, last.as_ref(), Instant::now());
-    if let (Some(panel), Some(display)) = (&info.panel, info.display) {
-        println!("[flash] Panel {panel} ({}), Firmware-Variante {} -> {action:?}", info.panel_id.as_deref().unwrap_or("-"), display.wire());
+    let now = Instant::now();
+    let action = panel_action(info.panel.as_deref(), info.display, last.as_ref(), now);
+    if reported {
+        note(app, format!("Panel-Abgleich: {}; letzter Flash {} -> {}", info.panel.as_deref().unwrap_or("-"), describe_flash(last.as_ref(), now), describe_action(action)));
     }
     let PanelAction::Correct(variant) = action else {
         return;
@@ -164,16 +176,37 @@ pub fn after_connect(app: &AppHandle, info: &DeviceInfo) {
     if let Err(e) = app.emit(PANEL_CORRECTION_EVENT, variant) {
         eprintln!("[flash] Event nicht gesendet: {e}");
     }
-    let app = app.clone();
+    let fix_app = app.clone();
     let spawned = std::thread::Builder::new().name("aimonitor-panel-fix".into()).spawn(move || {
         // Erst die Verbindung fertig einrichten lassen.
         std::thread::sleep(Duration::from_secs(1));
-        if let Err(e) = run_origin(&app, variant, FlashOrigin::PanelCorrection) {
-            eprintln!("[flash] Nachflashen fehlgeschlagen: {e}");
+        if let Err(e) = run_origin(&fix_app, variant, FlashOrigin::PanelCorrection) {
+            note(&fix_app, format!("Nachflashen fehlgeschlagen: {e}"));
         }
     });
     if let Err(e) = spawned {
-        eprintln!("[flash] Nachflash-Thread nicht gestartet: {e}");
+        note(app, format!("Nachflash-Thread nicht gestartet: {e}"));
+    }
+}
+
+fn describe_flash(last: Option<&FlashRecord>, now: Instant) -> String {
+    match last {
+        Some(r) => format!(
+            "{} vor {} s ({:?}, {})",
+            r.variant.wire(),
+            now.saturating_duration_since(r.at).as_secs(),
+            r.origin,
+            if r.local { "Datei" } else { "Release" }
+        ),
+        None => "keiner seit App-Start".into(),
+    }
+}
+
+fn describe_action(action: PanelAction) -> String {
+    match action {
+        PanelAction::None => "nichts zu tun".into(),
+        PanelAction::Correct(v) => format!("flashe {} nach", v.wire()),
+        PanelAction::Notify(v) => format!("Hinweis, {} passt", v.wire()),
     }
 }
 
@@ -208,11 +241,11 @@ pub fn detect_chip(app: &AppHandle) -> Result<Option<&'static str>, String> {
         Ok(Some(TargetChip::Esp32S3)) => Some("esp32s3"),
         Ok(None) => None,
         Err(e) => {
-            eprintln!("[flash] Chip-Erkennung auf {port} fehlgeschlagen: {e}");
+            note(app, format!("Chip-Erkennung auf {port} fehlgeschlagen: {e}"));
             None
         }
     };
-    println!("[flash] Chip-Erkennung auf {port}: {}", chip.unwrap_or("unbekannt"));
+    note(app, format!("Chip-Erkennung auf {port}: {}", chip.unwrap_or("unbekannt")));
     Ok(chip)
 }
 
@@ -239,7 +272,7 @@ pub fn run_with_image(app: &AppHandle, variant: DisplayVariant, local_path: Opti
     let _guard = FlashGuard(&state);
 
     let port = state.connection.lock().unwrap().port.clone().ok_or_else(|| "esp32.none.info".to_string())?;
-    println!("[flash] Start: Variante {} auf {port} ({origin:?})", variant.wire());
+    note(app, format!("Start: Variante {} auf {port} ({origin:?}, {})", variant.wire(), if local_path.is_some() { "Datei" } else { "Release" }));
     *state.last_flash.lock().unwrap() = Some(FlashRecord { at: Instant::now(), variant, local: local_path.is_some(), origin });
     let chip = if variant.is_esp32s3() { TargetChip::Esp32S3 } else { TargetChip::Esp32 };
 
@@ -329,7 +362,7 @@ pub fn run_with_image(app: &AppHandle, variant: DisplayVariant, local_path: Opti
     let outcome = match result {
         Ok(()) => {
             let seconds = started.elapsed().as_secs_f64();
-            println!("[flash] Fertig nach {seconds:.1} s: {}", variant.wire());
+            note(app, format!("Fertig nach {seconds:.1} s: {}", variant.wire()));
             {
                 let mut settings = state.settings.lock().unwrap();
                 settings.installed_firmware_version = release.as_ref().map(|file| file.version.clone());
