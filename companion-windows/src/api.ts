@@ -144,7 +144,7 @@ export const getSnapshot = () => invoke<Snapshot>("get_snapshot");
 export const setProvider = (provider: ProviderKey) => invoke<void>("set_provider", { provider });
 export const refresh = () => invoke<void>("refresh");
 export const getSettings = () => invoke<Settings>("get_settings");
-export const setSettings = (settings: Settings) => invoke<Settings>("set_settings", { settings });
+export const setSettings = (patch: Partial<Settings>) => invoke<Settings>("set_settings", { patch });
 export const listProviders = () => invoke<ProviderInfo[]>("list_providers");
 export const rescanCli = () => invoke<void>("rescan_cli");
 

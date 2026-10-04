@@ -51,6 +51,9 @@ pub fn apply_provider(app: &AppHandle, provider: Provider) {
         let views_changed = settings.view_mode != ViewMode::Automatic
             && settings.views[settings.active_view] != content;
         if views_changed {
+            if settings.view_mode == ViewMode::Intelligent {
+                settings.mark_smart_change(true);
+            }
             match settings.views.iter().position(|v| *v == content) {
                 Some(index) => settings.active_view = index,
                 None => {
@@ -112,12 +115,11 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 }
 
 #[tauri::command]
-pub fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings, String> {
+pub fn set_settings(app: AppHandle, patch: Map<String, Value>) -> Result<Settings, String> {
     let state = app.state::<AppState>();
-    let previous = state.settings.lock().unwrap().clone();
+    let mut previous = state.settings.lock().unwrap().clone();
 
-    let mut next = settings;
-    next.normalize_views();
+    let mut next = previous.apply_patch(&patch)?;
     let mut error = None;
     if next.autostart != previous.autostart {
         if let Err(e) = apply_autostart(&app, next.autostart) {
@@ -127,8 +129,15 @@ pub fn set_settings(app: AppHandle, settings: Settings) -> Result<Settings, Stri
         }
     }
 
-    *state.settings.lock().unwrap() = next.clone();
-    next.save(&app);
+    {
+        let mut current = state.settings.lock().unwrap();
+        let autostart = next.autostart;
+        next = current.apply_patch(&patch)?;
+        if patch.contains_key("autostart") { next.autostart = autostart; }
+        previous = current.clone();
+        *current = next.clone();
+        current.save(&app);
+    }
 
     if next.provider != previous.provider {
         apply_provider(&app, next.provider);
@@ -278,6 +287,9 @@ pub fn remove_plugin(app: AppHandle, id: String) -> Result<(), String> {
             }
         }
         if changed {
+            if settings.view_mode == ViewMode::Intelligent {
+                settings.mark_smart_change(false);
+            }
             settings.save(&app);
             Some(settings.clone())
         } else {

@@ -109,11 +109,11 @@ export default function App() {
       if (!current) return;
       const next = { ...current, ...patch };
       setLocalSettings(next);
-      // Jede Änderung enthält den aktuellen Gesamtstand. Serielles Speichern
-      // verhindert, dass eine ältere Antwort die nächste Fensterwahl zurücksetzt.
+      // Send only the user's edits: a queued request must not replay an old
+      // automatic window selection from the frontend snapshot.
       settingsWriteQueue.current = settingsWriteQueue.current.then(async () => {
         try {
-          const saved = await setSettings(next);
+          const saved = await setSettings(patch);
           if (settingsRef.current === next) setLocalSettings(saved);
         } catch (e) {
           // Backend meldet z. B. einen Autostart-Fehler und liefert den alten Wert zurück.

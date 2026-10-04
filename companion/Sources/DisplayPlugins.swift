@@ -111,6 +111,13 @@ final class DisplayPlugins {
         if process.terminationStatus != 0 {
             let detail = String(decoding: bytes.prefix(4096), as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let range = detail.range(of: "This plugin requires a newer version of AI Monitor (formatVersion "),
+               let end = detail[range.upperBound...].firstIndex(of: ")") {
+                throw failure(L("plugins.requiresNewer", String(detail[range.upperBound..<end])))
+            }
+            if detail.contains("attentionRules require formatVersion 2") {
+                throw failure(L("plugins.rulesRequireV2"))
+            }
             throw failure(detail.isEmpty ? "Plugin helper failed" : String(detail.prefix(200)))
         }
         guard bytes.count <= 64 * 1024,

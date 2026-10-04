@@ -1,4 +1,6 @@
 {
+  "plugins.requiresNewer": "Dieses Plugin benötigt eine neuere Version von AI Monitor (Formatversion {version}).",
+  "plugins.rulesRequireV2": "attentionRules benötigen formatVersion 2.",
   "app.about": "Über AI Monitor",
   "app.quit": "AI Monitor beenden",
   "app.settings": "Einstellungen …",

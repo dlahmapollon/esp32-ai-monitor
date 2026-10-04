@@ -47,6 +47,7 @@ struct Candidate {
 
 #[derive(Default)]
 pub struct SmartSwitch {
+    revision: u64,
     usage: HashMap<Provider, Vec<UsageSignal>>,
     plugins: HashMap<String, (BTreeMap<String, bool>, Instant)>,
     claude_code_waiting: Option<BTreeSet<(String, Waiting, i64)>>,
@@ -57,8 +58,20 @@ pub struct SmartSwitch {
 }
 
 impl SmartSwitch {
+    /// Synchronize under the settings lock before observing or selecting candidates.
+    /// An old candidate can never be used with newly published view assignments.
+    pub fn sync_revision(&mut self, revision: u64, manual: bool, now: Instant) {
+        if self.revision != revision {
+            self.revision = revision;
+            self.reset(now);
+            if manual { self.touch(now); }
+        }
+    }
+
     pub fn reset(&mut self, now: Instant) {
+        let revision = self.revision;
         *self = Self::default();
+        self.revision = revision;
         self.last_change = Some(now);
     }
 
@@ -151,9 +164,10 @@ impl SmartSwitch {
         }
         let next = self.pending.iter()
             .filter(|c| c.view != active && self.shown_at.get(&c.view).is_none_or(|at| now.duration_since(*at) >= VIEW_COOLDOWN))
-            .max_by_key(|c| (c.priority, std::cmp::Reverse(c.at)))
+            .min_by_key(|c| (std::cmp::Reverse(c.priority), c.at, c.view))
             .map(|c| c.view)?;
-        self.pending.clear();
+        // Events for other windows remain eligible until their original expiry.
+        self.pending.retain(|c| c.view != active && c.view != next);
         self.last_change = Some(now);
         self.shown_at.insert(next, now);
         Some(next)
@@ -163,6 +177,58 @@ impl SmartSwitch {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn revision_discards_old_indices_before_a_choice_and_enforces_dwell() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.reset(start);
+        smart.enqueue(1, 3, start);
+        let now = start + MIN_DWELL;
+        smart.sync_revision(1, false, now);
+        assert_eq!(smart.choose(0, now), None);
+        smart.enqueue(2, 2, now);
+        assert_eq!(smart.choose(0, now + Duration::from_secs(1)), None);
+        assert_eq!(smart.choose(0, now + MIN_DWELL), Some(2));
+    }
+
+    #[test]
+    fn revision_manual_selection_holds_without_waiting_for_a_job() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.sync_revision(1, true, start);
+        smart.enqueue(1, 3, start);
+        smart.sync_revision(1, false, start + MIN_DWELL);
+        assert_eq!(smart.choose(0, start + MIN_DWELL), None);
+        smart.reset(start + MIN_DWELL);
+        assert_eq!(smart.revision, 1);
+    }
+
+    #[test]
+    fn equal_candidates_choose_lowest_view_and_keep_other_windows() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.reset(start);
+        smart.enqueue(2, 2, start);
+        smart.enqueue(1, 2, start);
+        smart.enqueue(3, 3, start);
+        assert_eq!(smart.choose(0, start + MIN_DWELL), Some(3));
+        assert_eq!(smart.choose(3, start + MIN_DWELL * 2), Some(1));
+        // Retention never extends the original five-minute lifetime.
+        assert_eq!(smart.choose(1, start + MIN_DWELL * 3), None);
+    }
+
+    #[test]
+    fn another_window_is_shown_after_the_minimum_dwell() {
+        let start = Instant::now();
+        let mut smart = SmartSwitch::default();
+        smart.reset(start);
+        smart.enqueue(1, 3, start);
+        smart.enqueue(2, 2, start);
+        assert_eq!(smart.choose(0, start + MIN_DWELL), Some(1));
+        assert_eq!(smart.choose(1, start + MIN_DWELL + Duration::from_secs(1)), None);
+        assert_eq!(smart.choose(1, start + MIN_DWELL * 2), Some(2));
+    }
+
     #[test]
     fn plugin_fires_only_on_rising_edge_and_respects_cooldown() {
         let start = Instant::now();

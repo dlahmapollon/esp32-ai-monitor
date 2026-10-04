@@ -132,10 +132,13 @@ final class IntelligentViews {
         let next = pending.filter {
             $0.view != active && (shown[$0.view].map { now.timeIntervalSince($0) >= 10 * 60 } ?? true)
         }.sorted {
-            $0.priority == $1.priority ? $0.date < $1.date : $0.priority > $1.priority
+            if $0.priority != $1.priority { return $0.priority > $1.priority }
+            if $0.date != $1.date { return $0.date < $1.date }
+            return $0.view < $1.view
         }.first?.view
         guard let next else { return nil }
-        pending.removeAll()
+        // Keep other windows eligible until their original five-minute expiry.
+        pending.removeAll { $0.view == active || $0.view == next }
         lastChange = now
         shown[next] = now
         return next

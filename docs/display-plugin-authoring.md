@@ -14,7 +14,9 @@ whole ZIP may be at most 256 KiB. The test fixture demonstrates the format
 without shipping a plugin with the companion.
 
 Set `formatVersion` to `1` for plugins without intelligent-switch rules or `2`
-when using `attentionRules`. Each new manifest field after format 2 requires a
+when using `attentionRules`. Format 1 must omit the field entirely, even when
+the list would be empty; including it reports `attentionRules require formatVersion 2`.
+Each new manifest field after format 2 requires a
 new format version. The existing `localizations` and `lightScenes` fields remain
 valid in version 1 for compatibility with packages already published. New
 companions check `formatVersion` before strict field validation, so a package
@@ -111,7 +113,10 @@ The desktop companion observes the first successful fetch as a baseline. It
 requests a window switch only when a rule changes from false to true on a later
 successful fetch. Repeated true values, failed fetches, missing fields, and
 scene redraws do not trigger a switch. The global intelligent-switch policy
-applies its minimum dwell, per-window cooldown, and touch hold. Plugins without
+applies its minimum dwell, per-window cooldown, and touch hold. A switch consumes
+events for the window being left and the selected window; other pending windows
+remain eligible until their original five-minute expiry. Candidates are ordered by
+highest priority, oldest event, then lowest window index. Plugins without
 `attentionRules` remain fully compatible and do not request switches. The
 firmware and scene protocol are unchanged.
 

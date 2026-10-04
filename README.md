@@ -25,7 +25,8 @@ permission or input, or completes and awaits the user. The first successful
 sample or waiting state establishes a baseline; repeated values do not trigger
 a switch. Windows stay visible for at least two minutes, each window has a
 ten-minute cooldown, and touch selection pauses automatic choices for ten
-minutes. The companion sends the existing manual `set_views` command, so no
+minutes. Other pending windows remain eligible after a switch until their
+original five-minute event expiry; ties prefer the lowest window index. The companion sends the existing manual `set_views` command, so no
 firmware change is needed.
 
 ### Display plugins (in development)

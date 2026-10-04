@@ -4,7 +4,7 @@ import {
   configurePlugin, inspectPlugin, installPlugin, removePlugin,
   pluginText, type PluginInfo, type PluginPreview,
 } from "../api";
-import type { Translate } from "../i18n";
+import { pluginError, type Translate } from "../i18n";
 import ClaudeCodeCard from "./ClaudeCodeCard";
 
 interface Props {
@@ -28,7 +28,7 @@ function PluginSettings({ t, locale, plugin, onRefresh }: { t: Translate; locale
       await configurePlugin(plugin.id, values);
       onRefresh();
     } catch (e) {
-      setError(String(e));
+      setError(pluginError(e, t));
     } finally { setBusy(false); }
   };
   const remove = async () => {
@@ -39,7 +39,7 @@ function PluginSettings({ t, locale, plugin, onRefresh }: { t: Translate; locale
       await removePlugin(plugin.id);
       onRefresh();
     } catch (e) {
-      setError(String(e));
+      setError(pluginError(e, t));
       setBusy(false);
     }
   };
@@ -90,14 +90,14 @@ export default function Plugins({ t, locale, plugins, onRefresh }: Props) {
     try {
       const path = await open({ multiple: false, filters: [{ name: "AI Monitor plugin", extensions: ["aimplugin"] }] });
       if (typeof path === "string") { setSource(path); setCandidate(null); setError(null); }
-    } catch (e) { setError(String(e)); }
+    } catch (e) { setError(pluginError(e, t)); }
   };
   const inspect = async () => {
     setBusy(true);
     setError(null);
     setCandidate(null);
     try { setCandidate(await inspectPlugin(source.trim())); }
-    catch (e) { setError(String(e)); }
+    catch (e) { setError(pluginError(e, t)); }
     finally { setBusy(false); }
   };
   const install = async () => {
@@ -109,7 +109,7 @@ export default function Plugins({ t, locale, plugins, onRefresh }: Props) {
       setCandidate(null);
       setSource("");
       onRefresh();
-    } catch (e) { setError(String(e)); }
+    } catch (e) { setError(pluginError(e, t)); }
     finally { setBusy(false); }
   };
 

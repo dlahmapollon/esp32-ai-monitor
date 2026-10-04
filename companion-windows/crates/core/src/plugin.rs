@@ -211,6 +211,8 @@ pub fn parse_manifest(bytes: &[u8]) -> Result<Manifest, String> {
     #[serde(rename_all = "camelCase")]
     struct Header {
         format_version: u64,
+        #[serde(flatten)]
+        fields: Map<String, Value>,
     }
     let header: Header =
         serde_json::from_slice(bytes).map_err(|e| format!("invalid manifest: {e}"))?;
@@ -219,6 +221,9 @@ pub fn parse_manifest(bytes: &[u8]) -> Result<Manifest, String> {
             "This plugin requires a newer version of AI Monitor (formatVersion {})",
             header.format_version
         ));
+    }
+    if header.format_version == 1 && header.fields.contains_key("attentionRules") {
+        return Err("attentionRules require formatVersion 2".into());
     }
     let manifest: Manifest =
         serde_json::from_slice(bytes).map_err(|e| format!("invalid manifest: {e}"))?;
@@ -258,8 +263,10 @@ fn equal_value(actual: Option<&Value>, expected: &Value) -> bool {
 
 impl Manifest {
     pub fn validate(&self) -> Result<(), String> {
-        if !(1..=FORMAT_VERSION).contains(&self.format_version)
-            || (self.format_version == 1 && !self.attention_rules.is_empty()) {
+        if self.format_version == 1 && !self.attention_rules.is_empty() {
+            return Err("attentionRules require formatVersion 2".into());
+        }
+        if !(1..=FORMAT_VERSION).contains(&self.format_version) {
             return Err("unsupported plugin format".into());
         }
         if self.min_scene_protocol == 0 || self.min_scene_protocol > SCENE_PROTOCOL {
@@ -1150,6 +1157,21 @@ mod tests {
         }]);
         assert!(parse_manifest(&serde_json::to_vec(&package).unwrap()).is_err());
         package["formatVersion"] = json!(2);
+        assert!(parse_manifest(&serde_json::to_vec(&package).unwrap()).is_ok());
+    }
+
+    #[test]
+    fn format_one_rejects_attention_field_even_when_empty_or_null() {
+        let mut package: Value = serde_json::from_slice(include_bytes!(
+            "../../../../tests/fixtures/display-plugin/plugin.json"
+        )).unwrap();
+        for value in [json!([]), Value::Null] {
+            package["attentionRules"] = value;
+            let error = parse_manifest(&serde_json::to_vec(&package).unwrap()).unwrap_err();
+            assert_eq!(error, "attentionRules require formatVersion 2");
+        }
+        package["formatVersion"] = json!(2);
+        package["attentionRules"] = json!([]);
         assert!(parse_manifest(&serde_json::to_vec(&package).unwrap()).is_ok());
     }
 

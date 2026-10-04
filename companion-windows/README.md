@@ -165,4 +165,5 @@ For a deterministic local hardware test, set
 `<plugin-id>.json`, such as `org.aimonitor.weather.json`. The companion
 reads that file in place of the plugin's HTTPS response when the file exists;
 other plugins keep using their normal URLs. The same 64 KiB JSON limit applies.
-This setting is for development runs and does not alter installed packages.
+This setting is honored only in debug builds and does not alter installed packages.
+Release builds always fetch the configured HTTPS source.

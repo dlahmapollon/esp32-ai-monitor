@@ -477,6 +477,7 @@ pub fn fetch(manifest: &Manifest, settings: &Map<String, Value>) -> Result<Value
     // Development fixture: a file named <plugin-id>.json replaces the HTTPS
     // response for that plugin only. It keeps hardware switching tests
     // deterministic without changing the installed package or source URL.
+    #[cfg(debug_assertions)]
     if let Some(dir) = std::env::var_os("AIMONITOR_PLUGIN_FIXTURE_DIR") {
         let fixture = Path::new(&dir).join(format!("{}.json", manifest.id));
         if fixture.is_file() {

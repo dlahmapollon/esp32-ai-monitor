@@ -297,3 +297,6 @@
 "cc.state.done" = "fertig";
 "cc.minutes" = "%d min";
 "cc.window.hint" = "Das Fenster „Claude Code“ fügst du im Display-Tab bei den Fenstern hinzu.";
+
+"plugins.requiresNewer" = "Dieses Plugin benötigt eine neuere Version von AI Monitor (Formatversion %@).";
+"plugins.rulesRequireV2" = "attentionRules benötigen formatVersion 2.";

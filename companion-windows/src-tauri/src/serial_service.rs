@@ -458,18 +458,16 @@ impl Service {
 
     fn apply_smart_switch(&mut self) {
         let state = self.app.state::<AppState>();
-        let (mode, active) = {
-            let settings = state.settings.lock().unwrap();
-            (settings.view_mode, settings.active_view)
-        };
+        let mut settings = state.settings.lock().unwrap();
+        self.smart.sync_revision(settings.smart_revision, settings.smart_manual, Instant::now());
+        let (mode, active) = (settings.view_mode, settings.active_view);
         if mode != ViewMode::Intelligent
             || !matches!(&self.state, LinkState::Connected(info) if info.supports_views()) { return; }
         let lacks_plugin_scenes = matches!(&self.state, LinkState::Connected(info) if !info.supports_plugin_scenes());
-        if lacks_plugin_scenes && state.settings.lock().unwrap().views.iter()
+        if lacks_plugin_scenes && settings.views.iter()
             .any(|view| matches!(view, ViewContent::Plugin(_))) { return; }
         let Some(next) = self.smart.choose(active, Instant::now()) else { return };
         let (updated, provider) = {
-            let mut settings = state.settings.lock().unwrap();
             if settings.view_mode != ViewMode::Intelligent || next >= settings.views.len() { return; }
             settings.active_view = next;
             let provider = match &settings.views[next] {
@@ -483,6 +481,7 @@ impl Service {
             settings.save(&self.app);
             (settings.clone(), provider)
         };
+        drop(settings);
         let _ = self.app.emit(SETTINGS_EVENT, updated);
         if let Some(provider) = provider {
             state.source.lock().unwrap().set_provider(provider, Utc::now());
@@ -1103,6 +1102,11 @@ impl Service {
 
     /// Gibt `false` zurück, wenn der Thread enden soll.
     fn handle(&mut self, job: Job) -> bool {
+        {
+            let state = self.app.state::<AppState>();
+            let settings = state.settings.lock().unwrap();
+            self.smart.sync_revision(settings.smart_revision, settings.smart_manual, Instant::now());
+        }
         match job {
             Job::Wifi { action, reply } => {
                 let result = self.wifi_command(action);

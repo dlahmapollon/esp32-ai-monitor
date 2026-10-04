@@ -67,6 +67,12 @@ impl Language {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    /// Internal revision, changed under the settings lock before publishing assignments.
+    /// Never supplied by the frontend or persisted across application launches.
+    #[serde(skip)]
+    pub(crate) smart_revision: u64,
+    #[serde(skip)]
+    pub(crate) smart_manual: bool,
     #[serde(default = "default_provider")]
     pub provider: Provider,
     #[serde(default = "default_views")]
@@ -111,6 +117,8 @@ fn default_provider() -> Provider {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            smart_revision: 0,
+            smart_manual: false,
             provider: Provider::DEFAULT,
             views: default_views(),
             view_mode: ViewMode::Manual,
@@ -129,6 +137,38 @@ impl Default for Settings {
 }
 
 impl Settings {
+    pub(crate) fn mark_smart_change(&mut self, manual: bool) {
+        self.smart_revision = self.smart_revision.wrapping_add(1);
+        self.smart_manual = manual;
+    }
+
+    /// Apply only the fields the user edited to the latest backend state.
+    /// Internal smart metadata is copied from self and is not accepted as input.
+    pub(crate) fn apply_patch(&self, patch: &serde_json::Map<String, Value>) -> Result<Self, String> {
+        let mut value = serde_json::to_value(self).map_err(|e| e.to_string())?;
+        let fields = value.as_object_mut().unwrap();
+        for (key, value) in patch {
+            if !fields.contains_key(key) {
+                return Err(format!("unknown setting: {key}"));
+            }
+            fields.insert(key.clone(), value.clone());
+        }
+        let mut next: Self = serde_json::from_value(value).map_err(|e| e.to_string())?;
+        next.normalize_views();
+        next.smart_revision = self.smart_revision;
+        next.smart_manual = self.smart_manual;
+        if (next.view_mode == ViewMode::Intelligent || self.view_mode == ViewMode::Intelligent)
+            && (next.views != self.views || next.view_mode != self.view_mode
+                || next.active_view != self.active_view)
+        {
+            let manual = next.view_mode == ViewMode::Intelligent
+                && (next.active_view != self.active_view
+                    || next.views.get(next.active_view) != self.views.get(self.active_view));
+            next.mark_smart_change(manual);
+        }
+        Ok(next)
+    }
+
     fn path(app: &AppHandle) -> Option<PathBuf> {
         app.path()
             .app_config_dir()
@@ -217,6 +257,40 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unrelated_patch_preserves_a_selection_made_after_the_frontend_snapshot() {
+        let mut current = Settings::default();
+        current.view_mode = ViewMode::Intelligent;
+        current.views.push(ViewContent::Clock);
+        current.active_view = 1;
+        current.provider = Provider::Claude;
+        current.smart_revision = 4;
+        let patch = serde_json::from_value(json!({"viewIntervalSeconds": 30})).unwrap();
+        let submitted = current.apply_patch(&patch).unwrap();
+        assert_eq!(submitted.active_view, 1);
+        assert_eq!(submitted.provider, Provider::Claude);
+        assert_eq!(submitted.smart_revision, 4);
+        assert_eq!(submitted.view_interval_seconds, 30);
+    }
+
+    #[test]
+    fn explicit_selection_advances_revision_but_internal_fields_are_not_serialized() {
+        let mut current = Settings::default();
+        current.view_mode = ViewMode::Intelligent;
+        current.views.push(ViewContent::Clock);
+        current.smart_revision = 4;
+        let patch = serde_json::from_value(json!({"activeView": 1})).unwrap();
+        let submitted = current.apply_patch(&patch).unwrap();
+        assert_eq!(submitted.active_view, 1);
+        assert_eq!(submitted.smart_revision, 5);
+        assert!(submitted.smart_manual);
+        let json = serde_json::to_value(&submitted).unwrap();
+        assert!(json.get("smartRevision").is_none());
+        assert!(json.get("smartManual").is_none());
+        let forged = serde_json::from_value(json!({"smartRevision": 0})).unwrap();
+        assert!(current.apply_patch(&forged).is_err());
+    }
 
     #[test]
     fn intelligent_mode_on_disk_is_readable_by_older_companions() {
