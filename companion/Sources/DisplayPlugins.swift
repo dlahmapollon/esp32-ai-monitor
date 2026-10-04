@@ -13,6 +13,9 @@ struct DisplayPluginRecord {
     var info: [String: Any]
     var settings: [String: Any]
     var scenes: [String: [String: Any]] = [:]
+    var attention: [String: Bool] = [:]
+    var hasAttentionBaseline = false
+    var firedAttention = false
     var fetchedAt: Date?
     var lastAttempt: Date?
     var error: String?
@@ -26,6 +29,7 @@ final class DisplayPlugins {
     private(set) var records: [String: DisplayPluginRecord] = [:]
     var onChange: (() -> Void)?
     private var fetching = Set<String>()
+    private var attentionResets = Set<String>()
 
     private let root: URL
 
@@ -107,6 +111,13 @@ final class DisplayPlugins {
         if process.terminationStatus != 0 {
             let detail = String(decoding: bytes.prefix(4096), as: UTF8.self)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let range = detail.range(of: "This plugin requires a newer version of AI Monitor (formatVersion "),
+               let end = detail[range.upperBound...].firstIndex(of: ")") {
+                throw failure(L("plugins.requiresNewer", String(detail[range.upperBound..<end])))
+            }
+            if detail.contains("attentionRules require formatVersion 2") {
+                throw failure(L("plugins.rulesRequireV2"))
+            }
             throw failure(detail.isEmpty ? "Plugin helper failed" : String(detail.prefix(200)))
         }
         guard bytes.count <= 64 * 1024,
@@ -237,6 +248,7 @@ final class DisplayPlugins {
                 DispatchQueue.main.async {
                     self.records[id] = DisplayPluginRecord(packageURL: target, info: info,
                                                            settings: settings)
+                    self.attentionResets.insert(id)
                     self.onChange?()
                     completion(.success(info))
                 }
@@ -258,10 +270,14 @@ final class DisplayPlugins {
         record.settings = values
         record.generation = UUID()
         record.scenes.removeAll()
+        record.attention.removeAll()
+        record.hasAttentionBaseline = false
+        record.firedAttention = false
         record.lastAttempt = nil
         record.fetchedAt = nil
         record.error = nil
         records[id] = record
+        attentionResets.insert(id)
         onChange?()
     }
 
@@ -270,6 +286,7 @@ final class DisplayPlugins {
         try FileManager.default.removeItem(at: record.packageURL)
         try? FileManager.default.removeItem(at: settingsPath(id))
         records.removeValue(forKey: id)
+        attentionResets.insert(id)
         onChange?()
     }
 
@@ -307,6 +324,16 @@ final class DisplayPlugins {
                         if let scenes = response["scenes"] as? [String: [String: Any]],
                            scenes["portrait"] != nil, scenes["landscape"] != nil,
                            scenes["square"] != nil {
+                            let attention = response["attention"] as? [String: Bool] ?? [:]
+                            let previousAttention = current.attention
+                            let interval = TimeInterval(current.info["intervalSeconds"] as? Int ?? 900)
+                            let recentBaseline = current.fetchedAt.map {
+                                Date().timeIntervalSince($0) <= 3 * interval
+                            } ?? false
+                            current.firedAttention = current.hasAttentionBaseline && recentBaseline &&
+                                attention.contains { $0.value && previousAttention[$0.key] != true }
+                            current.attention = attention
+                            current.hasAttentionBaseline = true
                             current.scenes = scenes
                             current.sceneLocale = locale
                             current.sceneTheme = theme
@@ -327,6 +354,34 @@ final class DisplayPlugins {
                 }
             }
         }
+    }
+
+    func resetAttentionBaseline(for ids: Set<String>) {
+        for id in ids {
+            guard var record = records[id] else { continue }
+            record.attention.removeAll()
+            record.hasAttentionBaseline = false
+            record.firedAttention = false
+            record.lastAttempt = nil
+            records[id] = record
+        }
+    }
+
+    func takeAttentionResets() -> Set<String> {
+        let ids = attentionResets
+        attentionResets.removeAll()
+        return ids
+    }
+
+    func takeAttentionEvents() -> Set<String> {
+        var fired = Set<String>()
+        for id in Array(records.keys) {
+            guard var record = records[id], record.firedAttention else { continue }
+            fired.insert(id)
+            record.firedAttention = false
+            records[id] = record
+        }
+        return fired
     }
 
     func scene(for id: String, layout: String, language: String) -> [String: Any] {

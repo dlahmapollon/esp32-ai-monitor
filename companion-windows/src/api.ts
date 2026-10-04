@@ -10,7 +10,7 @@ export type Language = "system" | "de" | "en";
 export type UpdateChannel = "stable" | "beta";
 export type ViewContent = { kind: "clock" } | { kind: "provider"; provider: ProviderKey }
   | { kind: "plugin"; provider: string };
-export type ViewMode = "manual" | "automatic";
+export type ViewMode = "manual" | "automatic" | "intelligent";
 
 export type Status =
   | { kind: "ok" }
@@ -144,7 +144,7 @@ export const getSnapshot = () => invoke<Snapshot>("get_snapshot");
 export const setProvider = (provider: ProviderKey) => invoke<void>("set_provider", { provider });
 export const refresh = () => invoke<void>("refresh");
 export const getSettings = () => invoke<Settings>("get_settings");
-export const setSettings = (settings: Settings) => invoke<Settings>("set_settings", { settings });
+export const setSettings = (patch: Partial<Settings>) => invoke<Settings>("set_settings", { patch });
 export const listProviders = () => invoke<ProviderInfo[]>("list_providers");
 export const rescanCli = () => invoke<void>("rescan_cli");
 

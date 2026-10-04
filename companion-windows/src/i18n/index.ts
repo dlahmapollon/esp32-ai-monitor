@@ -30,3 +30,12 @@ export function makeTranslate(locale: Locale): Translate {
     return text;
   };
 }
+
+/** Preserve technical detail while translating plugin compatibility errors. */
+export function pluginError(error: unknown, t: Translate): string {
+  const message = String(error);
+  const newer = message.match(/This plugin requires a newer version of AI Monitor \(formatVersion (\d+)\)/);
+  if (newer) return t("plugins.requiresNewer", { version: newer[1] });
+  if (message.includes("attentionRules require formatVersion 2")) return t("plugins.rulesRequireV2");
+  return message;
+}
