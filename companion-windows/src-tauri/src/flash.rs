@@ -23,6 +23,13 @@ use tauri::{AppHandle, Emitter, Manager};
 pub const FLASH_EVENT: &str = "flash-progress";
 /// Die App flasht die passende Variante nach, weil das Panel nicht passt.
 pub const PANEL_CORRECTION_EVENT: &str = "panel-correction";
+/// Nutzlast von `PANEL_CORRECTION_EVENT`: welche Variante nicht passte und
+/// welche die App stattdessen aufspielt.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct PanelCorrection {
+    pub from: DisplayVariant,
+    pub to: DisplayVariant,
+}
 /// So lange nach einem Release-Flash darf die App ohne Rückfrage nachflashen.
 const CORRECTION_WINDOW: Duration = Duration::from_secs(300);
 /// Wartezeit zwischen Port-Freigabe und Flash-Start (main.swift:1412).
@@ -170,18 +177,19 @@ pub fn after_connect(app: &AppHandle, info: &DeviceInfo) {
     if reported {
         note(app, format!("Panel-Abgleich: {}; letzter Flash {} -> {}", info.panel.as_deref().unwrap_or("-"), describe_flash(last.as_ref(), now), describe_action(action)));
     }
-    let PanelAction::Correct(variant) = action else {
+    let (PanelAction::Correct(variant), Some(from)) = (action, info.display) else {
         return;
     };
-    if let Err(e) = app.emit(PANEL_CORRECTION_EVENT, variant) {
+    if let Err(e) = app.emit(PANEL_CORRECTION_EVENT, PanelCorrection { from, to: variant }) {
         eprintln!("[flash] Event nicht gesendet: {e}");
     }
     let fix_app = app.clone();
     let spawned = std::thread::Builder::new().name("aimonitor-panel-fix".into()).spawn(move || {
         // Erst die Verbindung fertig einrichten lassen.
         std::thread::sleep(Duration::from_secs(1));
-        if let Err(e) = run_origin(&fix_app, variant, FlashOrigin::PanelCorrection) {
-            note(&fix_app, format!("Nachflashen fehlgeschlagen: {e}"));
+        match run_origin(&fix_app, variant, FlashOrigin::PanelCorrection) {
+            Ok(_) => note(&fix_app, format!("Nachflashen abgeschlossen: {} statt {}", variant.wire(), from.wire())),
+            Err(e) => note(&fix_app, format!("Nachflashen fehlgeschlagen: {e}")),
         }
     });
     if let Err(e) = spawned {

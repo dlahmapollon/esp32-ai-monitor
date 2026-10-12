@@ -271,7 +271,9 @@
 "flashdlg.variant.hint.s3" = "Detected: ESP32-S3 – the Guition 4848S040 board.";
 "flash.confirm.cyd" = "Detected: ESP32 – one of the CYD boards. The firmware reads out which display is fitted after flashing. If it does not match the Standard variant, the app flashes the right firmware automatically.";
 "panel.fix.running.title" = "Flashing the matching firmware";
-"panel.fix.running.detail" = "Detected: %@. The app flashes the matching variant.";
+"panel.fix.running.detail" = "The firmware for %1$@ does not match the display. The app is now flashing the firmware for %2$@.";
+"panel.fix.done.title" = "Matching firmware flashed";
+"panel.fix.done.detail" = "The firmware for %1$@ did not match the display. The firmware for %2$@ is now running.";
 "panel.mismatch.title" = "Firmware does not match the display";
 "panel.mismatch.detail" = "Fitted: %1$@, installed: firmware for %2$@.";
 "panel.mismatch.action" = "Flash matching firmware";

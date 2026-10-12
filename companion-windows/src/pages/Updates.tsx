@@ -16,6 +16,7 @@ import {
   type ConnectionSnapshot,
   type DetectedChip,
   type DisplayVariant,
+  type PanelCorrection,
   type DownloadProgress,
   type FlashOutcome,
   type FlashProgress,
@@ -101,7 +102,7 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
   const [detecting, setDetecting] = useState(false);
   const [detectedChip, setDetectedChip] = useState<DetectedChip | null>(null);
   /// Die App flasht von selbst nach, weil das Panel nicht zur Firmware passt.
-  const [correcting, setCorrecting] = useState<DisplayVariant | null>(null);
+  const [correcting, setCorrecting] = useState<PanelCorrection | null>(null);
 
   // Status laden und alle Live-Events abonnieren.
   useEffect(() => {
@@ -289,6 +290,7 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
   const filesComplete = releaseLoaded && (fw?.missingAssets.length ?? 0) === 0;
   // Ein Nachflashen läuft im Backend; `flashing` kennt nur eigene Aufrufe.
   const correctionBusy = !!correcting && (!flash || (flash.phase !== "done" && flash.phase !== "failed"));
+  const correctionDone = !!correcting && flash?.phase === "done";
   const flashBusy = flashing || correctionBusy;
   const s3WithoutImage = detectedChip === "esp32s3" && !localPath && !fw?.s3Available;
   const ready = !!port && !flashBusy && !(connection?.paused ?? false) && (!!localPath || filesComplete) && !s3WithoutImage;
@@ -444,9 +446,9 @@ export default function Updates({ t, connection, settings, onSettings }: Props) 
           <h3>{confirm && !flash ? t("flash.confirm.title", { version: fw?.latestVersion ?? "?" }) : t("flashdlg.title")}</h3>
           {correcting && (
             <p className="notice">
-              <strong>{t("panel.fix.running.title")}</strong>
+              <strong>{t(correctionDone ? "panel.fix.done.title" : "panel.fix.running.title")}</strong>
               <br />
-              {t("panel.fix.running.detail", { variant: t(variantKey(correcting)) })}
+              {t(correctionDone ? "panel.fix.done.detail" : "panel.fix.running.detail", { from: t(variantKey(correcting.from)), to: t(variantKey(correcting.to)) })}
             </p>
           )}
           <p className="muted">{localPath ? `${localPath.split(/[\\/]/).pop()} · ${t("flash.local.format")}` : t("flashdlg.info", { port: shortPort || "—", version: fw?.latestVersion ?? fw?.deviceVersion ?? "?" })}</p>

@@ -396,7 +396,9 @@
   "flashdlg.variant.hint.cyd": "Erkannt: ESP32 – also eines der beiden CYD-Boards. Welches Display verbaut ist, verrät der Chip nicht. Im Zweifel zuerst Standard probieren; rauscht das Display danach oder ist gekippt, die Alternative wählen.",
   "flashdlg.variant.hint.s3": "Erkannt: ESP32-S3 – das Guition-Board 4848S040.",
   "panel.fix.running.title": "Passende Firmware wird aufgespielt",
-  "panel.fix.running.detail": "Erkannt: {variant}. Die App flasht die passende Variante nach.",
+  "panel.fix.done.title": "Passende Firmware aufgespielt",
+  "panel.fix.done.detail": "Die Firmware für {from} passte nicht zum Display. Jetzt läuft die Firmware für {to}.",
+  "panel.fix.running.detail": "Die Firmware für {from} passt nicht zum Display. Die App spielt jetzt die Firmware für {to} auf.",
   "panel.mismatch.title": "Firmware passt nicht zum Display",
   "panel.mismatch.detail": "Verbaut ist {panel}, installiert ist die Firmware für {firmware}.",
   "panel.mismatch.action": "Passende Firmware flashen"
