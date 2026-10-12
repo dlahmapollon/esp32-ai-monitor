@@ -74,6 +74,7 @@ let kFlashablePanels: Set<String> = [kDisplayVariantILI9341, kDisplayVariantST77
 let kPanelNoReply = "noreply"
 /// Kennung des Banners fuer eine unpassende Firmware-Variante.
 let kPanelMismatchBannerID = "panel-mismatch"
+let kPanelFixedBannerID = "panel-fixed"
 /// Varianten, die jedes Firmware-Release mitbringt. Das S3-Image gibt es erst
 /// ab 2.19.0 — fehlt es, bleibt der Flash für die CYDs trotzdem möglich.
 let kRequiredFirmwareVariants = [kDisplayVariantILI9341, kDisplayVariantST7789]
@@ -3855,6 +3856,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Flash, der schon automatisch korrigiert wurde. Liegt die Erkennung
     /// daneben, flasht die App so nicht endlos hin und her.
     private var panelCorrectionFlashAt: Date?
+    /// Laufendes Nachflashen: welche Variante nicht passte und welche jetzt
+    /// aufgespielt wird. Meldet sich das Board danach mit der neuen Variante,
+    /// nennt ein Hinweis beide.
+    private var pendingPanelCorrection: (from: String, to: String)?
     /// Flash, bei dem die App die CYD-Variante selbst gewaehlt hat (Standard,
     /// weil nur der Chip bekannt war). Nur diese Wahl darf sie auf blossen
     /// Verdacht („noreply") hin korrigieren.
@@ -4383,6 +4388,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if success {
                         self?.monitor.queueDiagnosticTestFrameAfterNextConnect()
                     } else {
+                        self?.abandonPanelCorrection()
                         self?.presentFlashRecovery(message: message, port: port, variant: variant)
                     }
                 }
@@ -4398,9 +4404,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         fw.downloadFirmware(variant: variant) { [weak self] success, error in
             DispatchQueue.main.async {
                 if success { proceed() }
-                else { self?.alert(title: L("download.failed"),
-                                   info: error ?? "Unknown error",
-                                   style: .warning) }
+                else {
+                    self?.abandonPanelCorrection()
+                    self?.alert(title: L("download.failed"),
+                                info: error ?? "Unknown error",
+                                style: .warning)
+                }
             }
         }
     }
@@ -4410,6 +4419,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// das ist der Normalfall beim ersten Flash eines CYD, bei dem die App nur
     /// den Chip kennt. Sonst gibt es einen Hinweis mit Flash-Knopf.
     private func handlePanelReport(panel: String?, firmwareVariant: String?) {
+        if let fixed = pendingPanelCorrection, firmwareVariant == fixed.to {
+            pendingPanelCorrection = nil
+            settingsController?.showBanner(
+                state: .ok,
+                title: L("panel.fix.done.title"),
+                detail: L("panel.fix.done.detail", displayVariantName(fixed.from), displayVariantName(fixed.to)),
+                noticeID: kPanelFixedBannerID)
+        }
         guard let panel = panel, let variant = firmwareVariant, panel != variant else {
             settingsController?.dismissBanner(kPanelMismatchBannerID)
             return
@@ -4427,7 +4444,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                let pickedAt = autoPickedFlashAt, fw.lastFlashAt == pickedAt,
                isRecentUncorrectedFlash(variant: variant) {
                 NSLog("[Firmware] Panel ohne Rueckleitung nach Standard-Flash — flashe ST7789")
-                flashMatchingPanel(port: port, panel: kDisplayVariantST7789)
+                flashMatchingPanel(port: port, panel: kDisplayVariantST7789, from: variant)
             }
             return
         }
@@ -4439,7 +4456,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSLog("[Firmware] Panel %@, Firmware-Variante %@ — passt nicht", panel, variant)
 
         if isRecentUncorrectedFlash(variant: variant) {
-            flashMatchingPanel(port: port, panel: panel)
+            flashMatchingPanel(port: port, panel: panel, from: variant)
             return
         }
 
@@ -4466,14 +4483,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             && panelCorrectionFlashAt != flashedAt
     }
 
-    private func flashMatchingPanel(port: String, panel: String) {
+    private func flashMatchingPanel(port: String, panel: String, from variant: String) {
         settingsController?.showBanner(
             state: .info,
             title: L("panel.fix.running.title"),
-            detail: L("panel.fix.running.detail", displayVariantName(panel)),
+            detail: L("panel.fix.running.detail", displayVariantName(variant), displayVariantName(panel)),
             noticeID: kPanelMismatchBannerID)
+        pendingPanelCorrection = (from: variant, to: panel)
         performFlash(port: port, variant: panel)
         panelCorrectionFlashAt = FirmwareManager.shared.lastFlashAt
+    }
+
+    /// Das Nachflashen ist gescheitert; der Fehlerdialog uebernimmt.
+    private func abandonPanelCorrection() {
+        guard pendingPanelCorrection != nil else { return }
+        pendingPanelCorrection = nil
+        settingsController?.dismissBanner(kPanelMismatchBannerID)
     }
 
     private func presentFlashRecovery(message: String, port: String, variant: String) {

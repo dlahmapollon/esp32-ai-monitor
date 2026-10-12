@@ -363,8 +363,13 @@ export function onUpdates(handler: (status: UpdateStatus) => void): Promise<Unli
 export function onFirmwareDownload(handler: (progress: DownloadProgress) => void): Promise<UnlistenFn> {
   return listen<DownloadProgress>("firmware-download", (event) => handler(event.payload));
 }
-export function onPanelCorrection(handler: (variant: DisplayVariant) => void): Promise<UnlistenFn> {
-  return listen<DisplayVariant>("panel-correction", (event) => handler(event.payload));
+/// Die App flasht nach: `from` passte nicht zum Display, `to` wird aufgespielt.
+export interface PanelCorrection {
+  from: DisplayVariant;
+  to: DisplayVariant;
+}
+export function onPanelCorrection(handler: (correction: PanelCorrection) => void): Promise<UnlistenFn> {
+  return listen<PanelCorrection>("panel-correction", (event) => handler(event.payload));
 }
 export function onFlashProgress(handler: (progress: FlashProgress) => void): Promise<UnlistenFn> {
   return listen<FlashProgress>("flash-progress", (event) => handler(event.payload));
