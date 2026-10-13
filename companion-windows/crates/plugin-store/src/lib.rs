@@ -856,14 +856,14 @@ mod tests {
         let mut settings = store.records[id].settings.clone();
         settings.insert("endpoint".into(), json!("https://new.example:8443/metrics?scale={scale}"));
         assert_eq!(store.configure(id, settings.clone()).unwrap().source_origin, "https://new.example:8443");
-        assert!(!store.apply_fetch(id, &old.1, &old.3, Ok(json!({}))));
+        assert!(!store.apply_fetch(&old, Ok(json!({}))));
         assert!(store.records[id].data.is_none());
         let mut invalid = settings.clone();
         invalid.insert("endpoint".into(), json!("http://new.example/"));
         assert!(store.configure(id, invalid).is_err());
         assert_eq!(store.records[id].settings, settings);
         let due = store.due_fetches(&assigned).remove(0);
-        assert_eq!(due.2.source_url(&due.3).unwrap(), "https://new.example:8443/metrics?scale=1");
+        assert_eq!(due.manifest.source_url(&due.settings).unwrap(), "https://new.example:8443/metrics?scale=1");
         let mut restored = PluginStore::load(root.clone());
         assert_eq!(restored.records[id].settings, settings);
         restored.install(&package).unwrap();

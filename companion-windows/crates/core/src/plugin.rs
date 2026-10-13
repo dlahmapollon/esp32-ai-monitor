@@ -1574,6 +1574,25 @@ mod tests {
     }
 
     #[test]
+    fn configured_url_retains_location_requirements_and_format_three_features() {
+        let mut plugin = url_fixture();
+        plugin.requires = vec![Requirement::Location];
+        plugin.source.interval_seconds = 20;
+        let mut settings = plugin.default_settings();
+        settings.insert("endpoint".into(), json!("https://local.example/data?lat={location.latitude}&lon={location.longitude}&n={scale}"));
+        assert!(plugin.request_url(&settings, None).unwrap_err().contains("location required"));
+        let location = Location { name: "Köln".into(), latitude: 50.93751, longitude: 6.96028 };
+        assert_eq!(plugin.request_url(&settings, Some(&location)).unwrap(),
+            "https://local.example/data?lat=50.938&lon=6.960&n=1");
+        assert_eq!(plugin.source_url(&settings).unwrap(), "https://local.example/data?lat=0.000&lon=0.000&n=1");
+        plugin.requires.clear();
+        assert!(plugin.source_url(&settings).is_err());
+        // Explicitly verify a format-3 manifest still parses in the new host.
+        let manifest = location_fixture();
+        assert!(parse_manifest(&serde_json::to_vec(&manifest).unwrap()).is_ok());
+    }
+
+    #[test]
     fn configured_url_rejects_invalid_input_before_fetch() {
         let plugin = url_fixture();
         let mut settings = plugin.default_settings();
@@ -1622,6 +1641,8 @@ mod tests {
     fn serialized_url_packages_obey_version_gates() {
         let mut package = serde_json::to_value(url_fixture()).unwrap();
         assert!(parse_manifest(&serde_json::to_vec(&package).unwrap()).is_ok());
+        package.as_object_mut().unwrap().remove("requires");
+        package.as_object_mut().unwrap().remove("lists");
         package["formatVersion"] = json!(2);
         assert!(parse_manifest(&serde_json::to_vec(&package).unwrap()).unwrap_err().contains("formatVersion 4"));
         package["source"]["urlSetting"] = Value::Null;
